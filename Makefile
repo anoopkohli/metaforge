@@ -2,7 +2,7 @@ PY ?= python3
 VENV := .venv
 BIN := $(VENV)/bin
 
-.PHONY: install test lint fmt seed evals up down clean
+.PHONY: install test lint fmt seed evals evals-live up down clean
 
 install:
 	$(PY) -m venv $(VENV)
@@ -25,6 +25,10 @@ seed:
 
 evals:
 	$(BIN)/python -m evals.run
+
+# Real model, never gates CI. Needs ANTHROPIC_API_KEY and `pip install -e ".[llm]"`.
+evals-live:
+	$(BIN)/python -m evals.run --live
 
 up:
 	docker compose up -d

@@ -13,7 +13,7 @@ Each stage is a git tag and is useful on its own.
 | Stage | What | Status |
 |---|---|---|
 | 0 | Core: tenant store, token auth, `TenantContext`, LLM adapter, tracing, synthetic data, thin eval runner | done (`stage-0`) |
-| 1 | `generator/`: natural language to validated metadata model, with golden-set evals | planned |
+| 1 | `generator/`: natural language to a validated, tenant-scoped metadata proposal; repair loop; golden-set evals (replay + live) | done (`stage-1`) |
 | 2 | `mcp_server/`: tenant-scoped MCP tools over the store | planned |
 | 3 | `rag/` + `attacks/`: multi-tenant RAG, two isolation strategies, canary-based leak attacks | planned |
 | 4 | `evals/`: mature harness with cost/latency tracking and a CI regression gate | planned |
@@ -51,9 +51,25 @@ print(store.list_objects(ctx))  # only this tenant's view
 Leaks are detected objectively: every tenant's data contains a unique canary string. If a call made as tenant A
 returns tenant B's canary, the test fails. See `tests/test_store_isolation.py`.
 
+## Stage 1: the generator
+
+```bash
+export METAFORGE_AUTH_SECRET=dev-only-secret ANTHROPIC_API_KEY=...
+pip install -e ".[llm]"
+make seed
+TOKEN=$(python -m core.cli token fjord)
+python -m generator --token "$TOKEN" "Track company vehicles: plate number, model year, assigned worker"
+python -m generator --token "$TOKEN" "Add a badge number to workers" --apply
+```
+
+The model's reply is untrusted: it is parsed strictly, checked against this tenant's own catalog, repaired
+with feedback at most 3 times, and written only on `--apply`, which re-checks first. Results and the
+mutation check are in [`docs/results-stage-1.md`](docs/results-stage-1.md).
+
 ## Docs
 
 - [`CLAUDE.md`](CLAUDE.md): standing rules for the AI coding tools working in this repo
 - [`docs/architecture.md`](docs/architecture.md): data model and design decisions
 - [`docs/threat-model.md`](docs/threat-model.md): threats, controls, and the tests that cover them
+- [`docs/results-stage-1.md`](docs/results-stage-1.md): stage 1 eval results
 - [`docs/ai-assist-log.md`](docs/ai-assist-log.md): where AI-generated code was wrong and what caught it

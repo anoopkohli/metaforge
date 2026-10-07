@@ -20,6 +20,27 @@ It is generic by design and shares nothing with any employer system.
   optional fields, relabel). Validated against the base before they are stored.
 - **Effective schema**: what a tenant actually sees. Custom object if one exists, otherwise base + override.
 
+## Stage 1 generator
+
+```
+description ─► prompt (this tenant's catalog only) ─► LLMClient ─► strict parse ─► semantic checks
+                                                         ▲                              │ errors
+                                                         └──── feedback, ≤ 3 attempts ◄─┘
+                                                                                        │ ok
+                                              proposal (dry run) ─► apply_proposal: re-check ─► store(ctx)
+```
+
+- **Proposal, not mutation.** The model can only emit `create_object`, `override_object` or `refuse`.
+  The schema is the capability boundary; there is no tenant field and no permission action.
+- **Strict parsing.** `extra="forbid"` and pydantic strict mode: `"required": "yes"` is an error, not `True`.
+- **Checked against the caller's view.** References, name collisions and override validity are checked
+  against `list_objects(ctx)`. Foreign and non-existent objects get the same error, so errors are not an
+  existence oracle.
+- **Overrides merge.** `put_override` replaces a tenant's override wholesale, so the generator merges the
+  proposed delta onto the existing override before validating and writing.
+- **Generate and apply are separate.** `apply_proposal` re-runs every check against current state.
+- **Two eval modes on one dataset.** `replay` (FakeLLM, CI-gated) tests the pipeline; `live` tests the model.
+
 ## Decisions
 
 1. **Explicit `TenantContext` on every store call.** The context comes from `verify_token`, never from

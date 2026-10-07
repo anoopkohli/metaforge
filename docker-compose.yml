@@ -1,0 +1,16 @@
+# Not needed for stage 0 (the store uses SQLite). Reserved for stage 3, where the shared-index
+# isolation strategy uses Postgres + pgvector with row-level security as a second enforcement layer.
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: metaforge
+      POSTGRES_PASSWORD: metaforge-dev-only
+      POSTGRES_DB: metaforge
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

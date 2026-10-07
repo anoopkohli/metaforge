@@ -1,23 +1,29 @@
-"""Run the stage-0 smoke eval: `python -m evals.run [--update-baseline]`.
+"""Run eval suites: `python -m evals.run [--suite NAME] [--live] [--update-baseline]`.
+
+Offline (default) runs every suite and gates each on its committed baseline; this is what CI runs.
+`--live` runs model-backed suites against a real provider (needs ANTHROPIC_API_KEY and the `llm`
+extra). Live runs never gate: they write a report to `evals/reports/` for `docs/results-stage-N.md`.
 
 The smoke suite checks the effective-schema logic over seeded synthetic tenants. It needs no LLM,
-and it exists to prove the harness end to end (dataset -> run -> report -> baseline gate) before
-any model-backed feature is added.
+and it proves the harness end to end (dataset -> run -> report -> baseline gate).
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
-from evals.runner import EvalCase, compare_to_baseline, load_jsonl, run_suite
+from evals import generator_suite
+from evals.runner import EvalCase, Report, compare_to_baseline, load_jsonl, run_suite
 from evals.scorers import fields_match
 
 HERE = Path(__file__).parent
 DATASET = HERE / "datasets" / "smoke.jsonl"
 BASELINE = HERE / "baselines" / "smoke.json"
+REPORTS = HERE / "reports"
 
 
 def _build():
@@ -35,31 +41,88 @@ def _build():
     return fn
 
 
+def _live_llm_factory():
+    from core.llm.anthropic_client import AnthropicLLM
+
+    model = os.environ.get("METAFORGE_MODEL", "claude-sonnet-5-5")
+    return lambda: AnthropicLLM(model=model)
+
+
+def _run(name: str, live: bool) -> tuple[Report, Path] | None:
+    if name == "smoke":
+        if live:
+            return None  # no model involved
+        return run_suite("smoke", load_jsonl(DATASET), _build(), fields_match), BASELINE
+    if name == "generator":
+        mode = "live" if live else "replay"
+        cases = generator_suite.select_cases(load_jsonl(generator_suite.DATASET), mode)
+        factory = _live_llm_factory() if live else None
+        fn = generator_suite.build(mode, factory)
+        return run_suite("generator", cases, fn, generator_suite.proposal_matches), (
+            generator_suite.BASELINE
+        )
+    raise ValueError(f"unknown suite {name!r}")
+
+
+SUITES = ("smoke", "generator")
+
+
+def _summary(report: Report) -> str:
+    d = report.to_dict()
+    line = (
+        f"{report.name}: n={d['n']} pass_rate={d['pass_rate']} mean_score={d['mean_score']} "
+        f"p95_latency_s={d['p95_latency_s']}"
+    )
+    usages = [
+        r.output["usage"]
+        for r in report.results
+        if isinstance(r.output, dict) and "usage" in r.output
+    ]
+    if usages:
+        tin = sum(u["input_tokens"] for u in usages)
+        tout = sum(u["output_tokens"] for u in usages)
+        line += f" tokens_in={tin} tokens_out={tout}"
+    return line
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--suite", choices=SUITES, action="append")
+    parser.add_argument("--live", action="store_true", help="use a real model; never gates")
     parser.add_argument("--update-baseline", action="store_true")
     args = parser.parse_args(argv)
+    if args.live and args.update_baseline:
+        parser.error("baselines are offline only; --live cannot update them")
 
-    report = run_suite("smoke", load_jsonl(DATASET), _build(), fields_match)
-    summary = report.to_dict()
-    print(
-        f"smoke: n={summary['n']} pass_rate={summary['pass_rate']} "
-        f"p95_latency_s={summary['p95_latency_s']}"
-    )
+    failed = False
+    for name in args.suite or SUITES:
+        ran = _run(name, args.live)
+        if ran is None:
+            continue
+        report, baseline = ran
+        print(_summary(report))
+        for r in report.results:
+            if not r.passed:
+                print(f"  FAIL {r.case_id} score={r.score:.2f}{' ' + r.error if r.error else ''}")
 
-    if args.update_baseline:
-        BASELINE.parent.mkdir(parents=True, exist_ok=True)
-        BASELINE.write_text(json.dumps({"pass_rate": summary["pass_rate"]}, indent=2) + "\n")
-        print(f"baseline written to {BASELINE}")
-        return 0
-
-    if BASELINE.exists():
-        problems = compare_to_baseline(report, json.loads(BASELINE.read_text()))
-        for p in problems:
-            print("REGRESSION:", p)
-        return 1 if problems else 0
-    print("no baseline found; run with --update-baseline to create one")
-    return 0
+        if args.live:
+            REPORTS.mkdir(exist_ok=True)
+            out = REPORTS / f"{name}-live.json"
+            out.write_text(json.dumps(report.to_dict(), indent=2, default=str) + "\n")
+            print(f"  report written to {out}")
+        elif args.update_baseline:
+            baseline.parent.mkdir(parents=True, exist_ok=True)
+            baseline.write_text(
+                json.dumps({"pass_rate": report.to_dict()["pass_rate"]}, indent=2) + "\n"
+            )
+            print(f"  baseline written to {baseline}")
+        elif baseline.exists():
+            for p in compare_to_baseline(report, json.loads(baseline.read_text())):
+                print("REGRESSION:", p)
+                failed = True
+        else:
+            print(f"  no baseline for {name}; run with --update-baseline to create one")
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

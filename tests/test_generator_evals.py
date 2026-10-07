@@ -9,7 +9,9 @@ from evals.run import main
 
 def test_generator_replay_suite_passes_fully():
     report = run_suite("generator", load_jsonl(DATASET), build("replay"), proposal_matches)
-    assert report.pass_rate == 1.0, [(r.case_id, r.score, r.error) for r in report.results if not r.passed]
+    assert report.pass_rate == 1.0, [
+        (r.case_id, r.score, r.error) for r in report.results if not r.passed
+    ]
 
 
 def test_generator_dataset_covers_the_threat_model():
@@ -58,7 +60,13 @@ CREATE = {
 
 
 def test_scorer_accepts_name_alternatives():
-    case = _case({"action": "create_object", "name": "car|vehicle", "fields": {"plate|plate_number": "string"}})
+    case = _case(
+        {
+            "action": "create_object",
+            "name": "car|vehicle",
+            "fields": {"plate|plate_number": "string"},
+        }
+    )
     assert proposal_matches(_out(CREATE), case) == 1.0
 
 

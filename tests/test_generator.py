@@ -196,7 +196,11 @@ def test_reference_to_other_tenants_object_is_rejected(fjord):
 def test_reference_to_unknown_object_is_rejected(fjord):
     store, ctx, _ = fjord
     proposal = parse_proposal(
-        js(with_object(fields=[{"name": "dept", "type": "reference", "reference_to": "department"}]))
+        js(
+            with_object(
+                fields=[{"name": "dept", "type": "reference", "reference_to": "department"}]
+            )
+        )
     )
     assert check_proposal(store, ctx, proposal)
 
@@ -269,7 +273,11 @@ def test_override_merges_with_existing_customisations(fjord):
 
 def test_override_cannot_hide_required_field(fjord):
     store, ctx, _ = fjord
-    hide = {"action": "override_object", "target": "worker", "override": {"hide_fields": ["hire_date"]}}
+    hide = {
+        "action": "override_object",
+        "target": "worker",
+        "override": {"hide_fields": ["hire_date"]},
+    }
     assert check_proposal(store, ctx, parse_proposal(js(hide)))
 
 
@@ -340,3 +348,49 @@ def test_override_proposal_type(fjord):
     store, ctx, _ = fjord
     result = generate(FakeLLM([js(BADGE)]), store, ctx, "add a badge number to workers")
     assert result.ok and isinstance(result.proposal, OverrideObject)
+
+
+# ---- CLI --------------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def cli_env(tmp_path, monkeypatch, secret):
+    import generator.__main__ as cli
+    from core.auth import issue_token
+    from core.store import MetadataStore
+    from core.synthetic import seed_demo
+
+    db = tmp_path / "cli.db"
+    store = MetadataStore(str(db))
+    tenants = seed_demo(store)
+    store.close()
+    monkeypatch.setenv("METAFORGE_AUTH_SECRET", secret)
+    monkeypatch.setenv("METAFORGE_DB", str(db))
+    monkeypatch.setattr(cli, "AnthropicLLM", lambda model: FakeLLM([js(VEHICLE)]))
+    return cli, db, tenants, issue_token(secret, tenants[0].tenant_id)
+
+
+def test_cli_dry_run_writes_nothing(cli_env):
+    cli, db, tenants, token = cli_env
+    from core.store import MetadataStore
+
+    assert cli.main(["vehicles", "--token", token]) == 0
+    store = MetadataStore(str(db))
+    assert store.get_object(tenants[0].context(), "vehicle") is None
+    store.close()
+
+
+def test_cli_apply_writes_for_the_token_tenant_only(cli_env):
+    cli, db, tenants, token = cli_env
+    from core.store import MetadataStore
+
+    assert cli.main(["vehicles", "--token", token, "--apply"]) == 0
+    store = MetadataStore(str(db))
+    assert store.get_object(tenants[0].context(), "vehicle") is not None
+    assert store.get_object(tenants[1].context(), "vehicle") is None
+    store.close()
+
+
+def test_cli_rejects_a_bad_token(cli_env):
+    cli, _, _, token = cli_env
+    assert cli.main(["vehicles", "--token", token + "x"]) == 2

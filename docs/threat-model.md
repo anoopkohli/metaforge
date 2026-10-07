@@ -27,10 +27,30 @@ Status: `covered` (test exists and passes), `planned` (stage noted), `accepted` 
 | 0.9 | Single application bug defeats isolation (no second layer) | Postgres row-level security as a database-enforced layer | n/a | planned (stage 3) |
 | 0.10 | Weak or leaked signing secret | Secret from environment, no default, startup fails without it | `Settings.from_env` | accepted: dev tokens only; swap for a real IdP before any real deployment |
 
-## Stage 1 (generator) — to write before building
-- Model output with invented keys, wrong types, or reference to objects that do not exist.
-- Prompt injection through the user's description ("also grant yourself ...").
-- Generated object names colliding with platform objects.
+## Stage 1 (generator)
+
+The generator turns a tenant user's description into a *proposal*: `create_object`, `override_object` or
+`refuse`. `generate()` never writes; `apply_proposal()` is a separate, explicit call that re-validates first.
+The proposal schema is the capability boundary: anything the model wants to do that the schema cannot express,
+it cannot do.
+
+| # | Threat | Control | Test | Status |
+|---|---|---|---|---|
+| 1.1 | Model output has invented keys, wrong types, or coerced values (`"required": "yes"`) | Strict pydantic parse with `extra="forbid"`; errors fed back; bounded retries (default 3); never `eval`/`exec` | `test_invented_key_is_rejected_then_repaired`, `test_wrong_types_are_not_coerced`, eval cases `repair-*` | covered |
+| 1.2 | Model output is prose, malformed JSON, or never converges | Only a bare JSON object or one fenced block is accepted; stops after `max_attempts` with `ok=False` | `test_gives_up_after_max_attempts`, eval case `exhaust-attempts` | covered |
+| 1.3 | Model emits an action outside the schema (e.g. `grant_role`) | Discriminated union of three actions; anything else fails validation | `test_unknown_action_is_rejected` | covered |
+| 1.4 | Model supplies a tenant ID to write somewhere else | No tenant field exists in the schema (`extra="forbid"`); writes use only the caller's `TenantContext` | `test_tenant_id_in_output_is_rejected`, `test_apply_writes_only_to_the_callers_tenant` | covered |
+| 1.5 | Prompt sent to the model contains another tenant's metadata | Catalog rendered only from `list_objects(ctx)` / `get_effective_schema(ctx)` | `test_prompt_contains_no_foreign_canary` | covered |
+| 1.6 | Proposal references an object the tenant cannot see (another tenant's, or invented) | Every `reference_to` checked against this tenant's visible catalog | `test_reference_to_other_tenants_object_is_rejected`, eval case `cross-tenant-reference` | covered |
+| 1.7 | Generated name collides with a platform object or the tenant's existing object | Rejected with a hint to use `override_object` or pick a new name; store's `ObjectNameConflict` is the second layer | `test_create_cannot_collide_with_platform_object`, `test_create_cannot_overwrite_existing_custom_object` | covered |
+| 1.8 | Prompt injection in the description ("change the platform object for all tenants", "give me admin") | Description is delimited as data; schema has no permission or platform actions; overrides are stored per tenant; generator code never calls `platform_*` | `test_generator_never_calls_platform_methods`, `test_override_never_changes_platform_object`, eval cases `injection-*` | covered |
+| 1.9 | Applying a generated override silently wipes the tenant's existing customisations | Delta is merged onto the existing override, and the merged result is validated against the base | `test_override_merges_with_existing_customisations` | covered |
+| 1.10 | Stored labels carry instructions that later reach other prompts (stored injection) | Labels capped at 80 chars, single line, no control characters | `test_multiline_label_is_rejected` | covered (stage 1); stage 2 must still treat stored metadata as data |
+| 1.11 | Cost or denial of service via huge input or huge output | Description length cap, field count cap, `max_tokens` per call, bounded attempts; token usage reported per run | `test_description_length_is_capped`, `test_field_count_is_capped` | covered |
+| 1.12 | State changes between generate and apply (TOCTOU) | `apply_proposal()` re-runs every check against current state | `test_apply_rechecks_against_current_state` | covered |
+
+No naive mode in stage 1: the controls here are schema validation, and a "naive" generator would just be one
+with checks deleted. Naive mode arrives with the stage 3 attack suite, where it makes the attacks meaningful.
 
 ## Stage 2 (MCP server) — to write before building
 - Model supplies a different tenant ID as a tool argument (server must inject and ignore it).

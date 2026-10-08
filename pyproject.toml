@@ -16,6 +16,10 @@ dependencies = [
 dev = [
     "pytest>=8",
     "ruff>=0.5",
+    "mcp>=2.3,<3",
+]
+mcp = [
+    "mcp>=2.3,<3",
 ]
 llm = [
     "anthropic>=0.40",

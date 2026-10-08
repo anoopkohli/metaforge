@@ -41,6 +41,29 @@ description ─► prompt (this tenant's catalog only) ─► LLMClient ─► s
 - **Generate and apply are separate.** `apply_proposal` re-runs every check against current state.
 - **Two eval modes on one dataset.** `replay` (FakeLLM, CI-gated) tests the pipeline; `live` tests the model.
 
+## Stage 2 MCP server
+
+```
+MCP client ──stdio──► server.py (low-level SDK Server) ──► tools.py (TenantTools) ──► store(ctx)
+                         │  ctx fixed at startup from METAFORGE_TOKEN
+                         │  apply_change: elicit / input_required + signed request_state
+                         └─ Confirmation(change_id) ──► only then: apply_proposal (stage 1 checks)
+```
+
+- **Low-level SDK server, not `MCPServer`.** The high-level server silently drops unknown arguments
+  before the handler runs. The low-level one hands over raw arguments, so a smuggled `tenant_id` can be
+  stripped *and audited*, and the remaining arguments validated strictly by our own models.
+- **SDK-free core.** `tools.py` has no MCP import; the adapter is ~150 lines. Tool logic is tested
+  without the SDK, the adapter through a real in-process client, and the stdio entry point as a subprocess.
+- **Propose, then apply.** `propose_change` reuses the stage-1 proposal schema and checks, and parks the
+  result under (tenant, random ID). `apply_change` is the only write.
+- **Confirmation is a capability object.** The tool layer writes only when handed `Confirmation(change_id)`.
+  Only the adapter makes one, after an accepted elicitation; the model cannot construct it.
+- **Both protocol eras.** 2025-11-25 uses server-to-client elicitation. 2026-07-28 has no back-channel,
+  so the server returns `input_required`; its `request_state` is HMAC-signed over tenant, change ID and
+  expiry because the client echoes it back.
+- **One tenant per process (stdio).** HTTP with per-request tokens waits for the web framework decision.
+
 ## Decisions
 
 1. **Explicit `TenantContext` on every store call.** The context comes from `verify_token`, never from
@@ -56,5 +79,6 @@ description ─► prompt (this tenant's catalog only) ─► LLMClient ─► s
    an identity provider and are documented as dev-only.
 
 ## Not yet decided
-- Web framework for the HTTP surface (FastAPI is the likely choice at stage 2 or 3).
+- Web framework for the HTTP surface. Stage 2 shipped stdio only; FastAPI is still the likely choice
+  when an HTTP surface is needed (stage 3 RAG API or MCP over streamable HTTP).
 - Embedding model for stage 3.

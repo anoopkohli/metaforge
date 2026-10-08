@@ -14,7 +14,7 @@ Each stage is a git tag and is useful on its own.
 |---|---|---|
 | 0 | Core: tenant store, token auth, `TenantContext`, LLM adapter, tracing, synthetic data, thin eval runner | done (`stage-0`) |
 | 1 | `generator/`: natural language to a validated, tenant-scoped metadata proposal; repair loop; golden-set evals (replay + live) | done (`stage-1`) |
-| 2 | `mcp_server/`: tenant-scoped MCP tools over the store | planned |
+| 2 | `mcp_server/` + `attacks/`: tenant-scoped MCP tools, human-confirmed writes, 13-attack suite (secure vs naive) | done (`stage-2`) |
 | 3 | `rag/` + `attacks/`: multi-tenant RAG, two isolation strategies, canary-based leak attacks | planned |
 | 4 | `evals/`: mature harness with cost/latency tracking and a CI regression gate | planned |
 | 5 | `triage/` + `chaos/`: fault injection and an incident-triage agent | planned |
@@ -28,8 +28,8 @@ make evals     # smoke eval + baseline gate
 make seed      # demo tenants into ./metaforge.db
 ```
 
-Python 3.11+. The only runtime dependency is `pydantic`. Provider SDKs and OpenTelemetry are optional extras
-(`.[llm]`, `.[otel]`).
+Python 3.11+. The only core runtime dependency is `pydantic`. The MCP SDK, provider SDKs and OpenTelemetry are optional
+extras (`.[mcp]`, `.[llm]`, `.[otel]`); `.[dev]` includes the MCP SDK so its tests run in CI.
 
 ## The core idea
 
@@ -66,10 +66,32 @@ The model's reply is untrusted: it is parsed strictly, checked against this tena
 with feedback at most 3 times, and written only on `--apply`, which re-checks first. Results and the
 mutation check are in [`docs/results-stage-1.md`](docs/results-stage-1.md).
 
+## Stage 2: the MCP server
+
+Four tools (`list_objects`, `describe_object`, `propose_change`, `apply_change`) for one tenant per
+server process. The tenant comes from a signed token, never from a tool argument. `apply_change` asks
+the user to approve the exact change through the MCP client and writes nothing without that approval.
+
+Add it to Claude Code (use absolute paths; `METAFORGE_DB` should be the store `make seed` created):
+
+```bash
+export METAFORGE_AUTH_SECRET=dev-only-secret
+make seed
+claude mcp add metaforge \
+  -e METAFORGE_AUTH_SECRET=dev-only-secret \
+  -e METAFORGE_DB="$PWD/metaforge.db" \
+  -e METAFORGE_TOKEN="$(python -m core.cli token fjord)" \
+  -- "$PWD/.venv/bin/python" -m mcp_server
+```
+
+Keep approvals manual: the confirmation step is only as strong as the client's approval prompt.
+Results, attack table and mutation check: [`docs/results-stage-2.md`](docs/results-stage-2.md).
+
 ## Docs
 
 - [`CLAUDE.md`](CLAUDE.md): standing rules for the AI coding tools working in this repo
 - [`docs/architecture.md`](docs/architecture.md): data model and design decisions
 - [`docs/threat-model.md`](docs/threat-model.md): threats, controls, and the tests that cover them
 - [`docs/results-stage-1.md`](docs/results-stage-1.md): stage 1 eval results
+- [`docs/results-stage-2.md`](docs/results-stage-2.md): stage 2 attack results
 - [`docs/ai-assist-log.md`](docs/ai-assist-log.md): where AI-generated code was wrong and what caught it

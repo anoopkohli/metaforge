@@ -14,6 +14,23 @@ This is part of the project: the point is to show how the tools were directed an
 
 ## Entries
 
+- 2026-10-08 · stage 2 · **Out-of-date SDK knowledge.** The plan assumed the MCP Python SDK's `FastMCP`
+  API. The installed SDK is 2.3.0, where `FastMCP` was renamed `MCPServer`, types moved to `mcp_types`,
+  and the new 2026-07-28 protocol has no back-channel for elicitation. Caught by reading the installed
+  source and running two throwaway prototypes before writing any server code. The prototypes also showed
+  that `MCPServer` silently drops unknown arguments, which is why the adapter uses the low-level `Server`.
+- 2026-10-08 · stage 2 · **Vacuous attack.** `forged-request-state` sent the string `"forged-state"`, which
+  the server rejects as malformed before checking the HMAC. The mutation check (HMAC check deleted) showed
+  no attack failing. Fix: forge a well-formed state (right tenant, change ID and expiry) with a made-up
+  MAC. The mutation is now caught.
+- 2026-10-08 · stage 2 · **False-positive attack.** `tenant-arg-describe` counted a leak whenever the
+  victim's object name appeared in the response, but the server's not-found error repeats the name the
+  attacker typed. The secure server "failed" the attack. Caught by the first test run. Fix: for error
+  messages only the victim's canary counts, since the attacker cannot know it in advance.
+- 2026-10-08 · stage 2 · **Mutation harness guard.** The second mutation run added a check that the
+  code under test came from the scratch copy. That check itself failed at first because macOS resolves
+  temporary directories under `/private`, so the comparison never matched. Fixed by resolving the path.
+
 - 2026-10-07 · stage 1 · **Data-loss bug caught at design time.** The obvious way to apply a generated
   override is `store.put_override(ctx, target, proposal.override)`. Reading `put_override` showed that it
   *replaces* the tenant's whole override, so adding one field would silently drop the tenant's existing

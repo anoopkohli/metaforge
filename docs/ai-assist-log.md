@@ -14,6 +14,23 @@ This is part of the project: the point is to show how the tools were directed an
 
 ## Entries
 
+- 2026-10-08 · stage 4 · **Invented price.** The first `evals/pricing.py` gave Claude Haiku 5.5 a
+  cache-read price of $0.01/M. The source table had no such figure; it was a plausible guess. Caught
+  on review against the source before commit. Fix: charge cache reads at the full input price (an upper
+  bound, the safe direction for a budget) and say so in the code and results.
+- 2026-10-08 · stage 4 · **Threat-model claim too strong.** Entry 4.6 first said the budget stops a
+  run "when it would be exceeded". A call's cost is only known after it returns, so the cap can be
+  overshot by one call. Caught while implementing `MeteredLLM`. Fix: the claim now says spend is
+  bounded by budget + one call.
+- 2026-10-08 · stage 4 · **Weak assertion.** The live-wiring test first checked `"live spend: $0.0" in
+  out`, which also passes when cost accounting is broken and spend is zero. Caught on review. Fix:
+  parse the amount and assert 0 < spend < budget.
+- 2026-10-08 · stage 4 · **Misread exit code.** An end-to-end gate check printed `exit=0` for a run
+  that had printed a REGRESSION line: `$?` was grep's status, not the CLI's. Caught because the two
+  disagreed. Rerun without the pipe: exit 1, as intended.
+- 2026-10-08 · stage 4 · **Supply chain.** The newest `actions/upload-artifact` (v7.0.2) was one day
+  old. Pinned v7.0.1 (April 2026) by commit SHA instead of a floating tag.
+
 - 2026-10-08 · stage 3 · **Transaction entered twice.** The first `PooledPgIndex._scoped` entered a
   psycopg transaction by hand and returned it, and callers then used it in a `with`, entering it again.
   Caught on review before the first run. Fix: a `@contextmanager` around `conn.transaction()`, on an

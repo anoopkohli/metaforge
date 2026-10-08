@@ -16,7 +16,7 @@ Each stage is a git tag and is useful on its own.
 | 1 | `generator/`: natural language to a validated, tenant-scoped metadata proposal; repair loop; golden-set evals (replay + live) | done (`stage-1`) |
 | 2 | `mcp_server/` + `attacks/`: tenant-scoped MCP tools, human-confirmed writes, 13-attack suite (secure vs naive) | done (`stage-2`) |
 | 3 | `rag/` + `attacks/`: multi-tenant RAG, pooled (Postgres + RLS) vs siloed isolation, 12 attacks × 6 configurations | done (`stage-3`) |
-| 4 | `evals/`: mature harness with cost/latency tracking and a CI regression gate | planned |
+| 4 | `evals/`: per-case regression gate, dataset fingerprints, reasoned baseline updates, token/cost tracking, injection-hardened LLM judge | done (`stage-4`) |
 | 5 | `triage/` + `chaos/`: fault injection and an incident-triage agent | planned |
 
 ## Quick start
@@ -104,6 +104,20 @@ The headline result: with correct application code but no RLS, one raw query tha
 filter leaks every tenant; with RLS, the same bug is contained, and RLS even absorbs a fully naive
 application except for its cache. Full matrix: [`docs/results-stage-3.md`](docs/results-stage-3.md).
 
+## Stage 4: the eval harness
+
+Every push runs every offline suite through a gate that fails on any individual case regressing, on a
+dataset being edited without a baseline update, and on prompt growth (+5% tokens). Changing a baseline
+needs a written reason, and recording a regression needs `--accept-regression`; both show in the diff.
+Live runs are budget-capped and use an LLM judge that grades meaning only, after deterministic leak
+checks. Results, the end-to-end gate checks and the mutation table: [`docs/results-stage-4.md`](docs/results-stage-4.md).
+
+```bash
+make evals                                                   # gated, offline
+python -m evals.run --update-baseline --reason "why"         # deliberate change
+python -m evals.run --live --max-cost-usd 1.00               # needs ANTHROPIC_API_KEY
+```
+
 ## Docs
 
 - [`CLAUDE.md`](CLAUDE.md): standing rules for the AI coding tools working in this repo
@@ -112,4 +126,5 @@ application except for its cache. Full matrix: [`docs/results-stage-3.md`](docs/
 - [`docs/results-stage-1.md`](docs/results-stage-1.md): stage 1 eval results
 - [`docs/results-stage-2.md`](docs/results-stage-2.md): stage 2 attack results
 - [`docs/results-stage-3.md`](docs/results-stage-3.md): stage 3 attack matrix and RAG eval
+- [`docs/results-stage-4.md`](docs/results-stage-4.md): stage 4 eval gate
 - [`docs/ai-assist-log.md`](docs/ai-assist-log.md): where AI-generated code was wrong and what caught it

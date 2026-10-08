@@ -28,7 +28,7 @@ evals:
 
 # Real model, never gates CI. Needs ANTHROPIC_API_KEY and `pip install -e ".[llm]"`.
 evals-live:
-	$(BIN)/python -m evals.run --live
+	$(BIN)/python -m evals.run --live --max-cost-usd 1.00
 
 # Project-local Postgres + pgvector for stage 3 (needs: brew install postgresql@17 pgvector).
 pg-up:

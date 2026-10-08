@@ -85,6 +85,25 @@ VectorIndex = PooledPgIndex  (shared table: WHERE tenant_id + RLS on app.tenant_
 - **Project-local Postgres.** `scripts/pg.sh` runs Homebrew Postgres from `.pgdata/` on a unix socket,
   with no background service; CI uses a `pgvector/pgvector:pg17` service container.
 
+## Stage 4 eval harness
+
+```
+suites.py (registry) ─► run_suite ─► summarize ─► gate.check(baseline) ─► exit code
+     │                       │            │                │
+ negative controls     MeteredLLM     report.py        update_baseline(reason,
+ (scorer self-test)   + Ledger cap   (scrubbed)        accept_regression) + history
+```
+
+- **Per-case baselines.** A baseline records every case's pass/fail, so a fix in one case cannot hide
+  a break in another.
+- **Dataset fingerprint.** Hash of ids, inputs, expectations and tags, order-independent. Editing a
+  dataset is fine; doing it without a baseline update is not.
+- **Tokens gated offline only.** Replay token counts are deterministic, so growth is a real signal.
+  Live counts vary, so they are reported, not gated.
+- **Judge after determinism.** Leak and isolation checks never go to a model. The judge sees the
+  candidate as delimited data and fails closed.
+- **One registry.** CLI, CI and tests read `evals/suites.py`, so a suite cannot be half-registered.
+
 ## Decisions
 
 1. **Explicit `TenantContext` on every store call.** The context comes from `verify_token`, never from

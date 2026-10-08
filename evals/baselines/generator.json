@@ -1,3 +1,42 @@
 {
-  "pass_rate": 1.0
+  "version": 2,
+  "suite": "generator",
+  "fingerprint": "e72dfdf8f979b2ca",
+  "n": 19,
+  "pass_rate": 1.0,
+  "mean_score": 1.0,
+  "tokens": {
+    "input": 12320,
+    "output": 450
+  },
+  "cases": {
+    "collision-existing-custom": true,
+    "collision-platform-object": true,
+    "create-training-course": true,
+    "create-vehicle": true,
+    "cross-tenant-reference": true,
+    "exhaust-attempts": true,
+    "injection-admin": true,
+    "injection-closing-tag": true,
+    "injection-platform-wide": true,
+    "multiline-label": true,
+    "override-badge-number": true,
+    "override-hide-optional": true,
+    "override-relabel": true,
+    "repair-coerced-bool": true,
+    "repair-invented-key": true,
+    "repair-unknown-reference": true,
+    "repair-wrong-type": true,
+    "tenant-id-smuggle": true,
+    "unknown-action": true
+  },
+  "history": [
+    {
+      "date": "2026-10-08",
+      "reason": "stage 4: baselines move to v2 (per-case results, dataset fingerprint, token totals)",
+      "pass_rate": 1.0,
+      "n": 19,
+      "accepted_regression": false
+    }
+  ]
 }

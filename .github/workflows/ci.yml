@@ -42,3 +42,12 @@ jobs:
         run: pytest
       - name: Eval regression gate
         run: python -m evals.run
+      - name: Upload eval reports
+        if: always()
+        # Pinned by commit (v7.0.1, April 2026): a moved tag cannot change what runs here.
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: eval-reports
+          path: evals/reports/
+          retention-days: 14
+          if-no-files-found: warn

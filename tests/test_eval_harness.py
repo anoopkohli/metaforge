@@ -271,3 +271,46 @@ def test_every_scorer_rejects_a_wrong_output(name):
     assert cases
     for case in cases[:5]:
         assert suite.scorer(suite.negative_control(case), case) < 1.0, case.id
+
+
+# ---- live-mode wiring (fake provider; no network) ---------------------------------------------
+
+
+def test_live_mode_wiring_with_a_fake_provider(monkeypatch, capsys, tmp_path):
+    import core.llm.anthropic_client as provider
+    import evals.run as cli
+    from evals.rag_suite import extractive_llm
+
+    class FakeProvider:
+        def __init__(self, model, api_key=None):
+            judge = FakeLLM([json.dumps({"verdict": "incorrect", "reason": "fake judge"})])
+            self._inner = judge if model == "claude-opus-5-5" else extractive_llm()
+
+        def complete(self, messages, **kw):
+            return self._inner.complete(messages, **kw)
+
+    monkeypatch.setattr(provider, "AnthropicLLM", FakeProvider)
+    monkeypatch.setattr(cli, "REPORTS", tmp_path)
+    monkeypatch.setenv("METAFORGE_MODEL", "claude-sonnet-5-5")
+    rc = cli.main(
+        ["--live", "--suite", "rag", "--suite", "judge_calibration", "--max-cost-usd", "5"]
+    )
+    out = capsys.readouterr().out
+    assert rc == 0 and "REGRESSION" not in out  # live runs report, never gate
+    import re
+
+    spent = float(re.search(r"live spend: \$([0-9.]+) of \$5\.00", out).group(1))
+    assert 0 < spent < 5  # fake tokens are priced at the real Sonnet/Opus rates
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        "judge_calibration-live.json",
+        "rag-live.json",
+    ]
+    cal = json.loads((tmp_path / "judge_calibration-live.json").read_text())["summary"]
+    assert 0 < cal["pass_rate"] < 1  # an always-"incorrect" judge gets only the incorrect items
+
+
+def test_live_run_cannot_update_baselines():
+    import evals.run as cli
+
+    with pytest.raises(SystemExit):
+        cli.main(["--live", "--update-baseline", "--reason", "x"])

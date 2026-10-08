@@ -6,6 +6,12 @@ from core.synthetic import seed_demo
 SECRET = "test-only-secret"
 
 
+@pytest.fixture(autouse=True)
+def _no_ci_step_summary(monkeypatch):
+    """Tests call evals.run.main(); keep them from writing into the real CI job summary."""
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+
+
 @pytest.fixture
 def secret() -> str:
     return SECRET

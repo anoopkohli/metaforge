@@ -42,7 +42,12 @@ class AnthropicLLM:
         return LLMResponse(
             text=text,
             usage=Usage(
-                input_tokens=resp.usage.input_tokens, output_tokens=resp.usage.output_tokens
+                input_tokens=resp.usage.input_tokens,
+                output_tokens=resp.usage.output_tokens,
+                cache_read_input_tokens=getattr(resp.usage, "cache_read_input_tokens", None) or 0,
+                cache_creation_input_tokens=(
+                    getattr(resp.usage, "cache_creation_input_tokens", None) or 0
+                ),
             ),
             latency_s=latency,
             model=self._model,

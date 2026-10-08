@@ -1,3 +1,36 @@
 {
-  "pass_rate": 1.0
+  "version": 2,
+  "suite": "mcp_attacks",
+  "fingerprint": "7288fb2f62d8d486",
+  "n": 13,
+  "pass_rate": 1.0,
+  "mean_score": 1.0,
+  "tokens": {
+    "input": 0,
+    "output": 0
+  },
+  "cases": {
+    "apply-without-confirmation": true,
+    "confirmation-for-other-change": true,
+    "declined-confirmation": true,
+    "existence-oracle": true,
+    "foreign-change-id": true,
+    "forged-request-state": true,
+    "hidden-field": true,
+    "no-elicitation-support": true,
+    "replay-change-id": true,
+    "state-for-other-change": true,
+    "tenant-arg-describe": true,
+    "tenant-arg-list": true,
+    "tenant-arg-write": true
+  },
+  "history": [
+    {
+      "date": "2026-10-08",
+      "reason": "stage 4: baselines move to v2 (per-case results, dataset fingerprint, token totals)",
+      "pass_rate": 1.0,
+      "n": 13,
+      "accepted_regression": false
+    }
+  ]
 }

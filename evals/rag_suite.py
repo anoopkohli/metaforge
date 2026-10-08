@@ -63,6 +63,7 @@ def build(
         foreign = [t.canary for t in tenants if t.tenant_id != tenant.tenant_id]
         return {
             "mode": mode,
+            "question": case.input["question"],
             "tenant_id": tenant.tenant_id,
             "answer": answer.text,
             "citations": answer.citations,
@@ -93,3 +94,26 @@ def rag_score(output: dict, case: EvalCase) -> float:
         output["fact_value"] in output["answer"],
     ]
     return sum(checks) / len(checks)
+
+
+def live_scorer(judge_llm: LLMClient) -> Callable[[dict, EvalCase], float]:
+    """Live-mode scorer: deterministic leak gate first, then retrieval and citation checks, then the
+    judge decides whether the answer states the fact (wording varies in live answers)."""
+    from evals.judge import judge
+
+    def score(output: dict, case: EvalCase) -> float:
+        if output["hit_tenants"] not in ([], [output["tenant_id"]]):
+            return 0.0
+        if output["foreign_canary_in_answer"]:
+            return 0.0
+        doc = case.expected["doc"]
+        reference = f"{case.expected['fact']}: {output['fact_value']}"
+        verdict = judge(judge_llm, output["question"], reference, output["answer"])
+        checks = [
+            float(doc in output["retrieved_docs"]),
+            float(any(c.split("#")[0] == doc for c in output["citations"])),
+            verdict.score,
+        ]
+        return sum(checks) / len(checks)
+
+    return score

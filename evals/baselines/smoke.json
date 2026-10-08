@@ -1,3 +1,29 @@
 {
-  "pass_rate": 1.0
+  "version": 2,
+  "suite": "smoke",
+  "fingerprint": "fd508499f2f1509e",
+  "n": 6,
+  "pass_rate": 1.0,
+  "mean_score": 1.0,
+  "tokens": {
+    "input": 0,
+    "output": 0
+  },
+  "cases": {
+    "expense-unchanged-t3": true,
+    "leave-unchanged-t2": true,
+    "unknown-object-empty": true,
+    "worker-hides-notes-t0": true,
+    "worker-hides-notes-t1": true,
+    "worker-hides-notes-t4": true
+  },
+  "history": [
+    {
+      "date": "2026-10-08",
+      "reason": "stage 4: baselines move to v2 (per-case results, dataset fingerprint, token totals)",
+      "pass_rate": 1.0,
+      "n": 6,
+      "accepted_regression": false
+    }
+  ]
 }

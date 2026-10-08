@@ -1,11 +1,14 @@
-"""Run eval suites: `python -m evals.run [--suite NAME] [--live] [--update-baseline]`.
+"""Run eval suites and gate them on committed baselines.
 
-Offline (default) runs every suite and gates each on its committed baseline; this is what CI runs.
-`--live` runs model-backed suites against a real provider (needs ANTHROPIC_API_KEY and the `llm`
-extra). Live runs never gate: they write a report to `evals/reports/` for `docs/results-stage-N.md`.
+    python -m evals.run                                  # every offline suite, gated (what CI runs)
+    python -m evals.run --suite rag                      # one suite
+    python -m evals.run --update-baseline --reason "..." # record new baselines, with a reason
+    python -m evals.run --live --max-cost-usd 1.00       # real model; reports only, never gates
 
-The smoke suite checks the effective-schema logic over seeded synthetic tenants. It needs no LLM,
-and it proves the harness end to end (dataset -> run -> report -> baseline gate).
+Offline runs replay recorded or scripted model behaviour, so they are deterministic and their token
+counts are gated too. Live runs need ANTHROPIC_API_KEY and the `llm` extra; the model under test is
+METAFORGE_MODEL and the judge METAFORGE_JUDGE_MODEL, sharing one budget. Reports go to
+evals/reports/ (gitignored); in GitHub Actions the summary table is added to the job summary.
 """
 
 from __future__ import annotations
@@ -16,143 +19,131 @@ import os
 import sys
 from pathlib import Path
 
-from evals import generator_suite, rag_suite
-from evals.runner import EvalCase, Report, compare_to_baseline, load_jsonl, run_suite
-from evals.scorers import fields_match
+from evals.gate import (
+    BaselineUpdateRefused,
+    GateResult,
+    check,
+    check_all_suites_ran,
+    summarize,
+    update_baseline,
+)
+from evals.report import markdown, write_report
+from evals.runner import run_suite
+from evals.suites import BASELINES, SUITES, _smoke_build
 
 HERE = Path(__file__).parent
-DATASET = HERE / "datasets" / "smoke.jsonl"
-BASELINE = HERE / "baselines" / "smoke.json"
 REPORTS = HERE / "reports"
+
+# Kept for callers and tests that predate the registry.
+DATASET = HERE / "datasets" / "smoke.jsonl"
+BASELINE = BASELINES / "smoke.json"
 
 
 def _build():
-    from core.store.sqlite_store import MetadataStore
-    from core.synthetic import seed_demo
-
-    store = MetadataStore(":memory:")
-    tenants = seed_demo(store, n_tenants=5, seed=7)
-
-    def fn(case: EvalCase):
-        tenant = tenants[case.input["tenant_index"]]
-        schema = store.get_effective_schema(tenant.context(), case.input["object"])
-        return [f.name for f in schema.fields] if schema else []
-
-    return fn
+    return _smoke_build("replay", None)
 
 
-def _live_llm_factory():
+def _live_factories(budget_usd: float):
     from core.llm.anthropic_client import AnthropicLLM
+    from evals.pricing import Ledger, MeteredLLM
 
+    ledger = Ledger(budget_usd)
     model = os.environ.get("METAFORGE_MODEL", "claude-sonnet-5-5")
-    return lambda: AnthropicLLM(model=model)
-
-
-def _run(name: str, live: bool) -> tuple[Report, Path] | None:
-    if name == "smoke":
-        if live:
-            return None  # no model involved
-        return run_suite("smoke", load_jsonl(DATASET), _build(), fields_match), BASELINE
-    if name == "generator":
-        mode = "live" if live else "replay"
-        cases = generator_suite.select_cases(load_jsonl(generator_suite.DATASET), mode)
-        factory = _live_llm_factory() if live else None
-        fn = generator_suite.build(mode, factory)
-        return run_suite("generator", cases, fn, generator_suite.proposal_matches), (
-            generator_suite.BASELINE
-        )
-    if name == "rag":
-        mode = "live" if live else "replay"
-        factory = _live_llm_factory() if live else None
-        fn = rag_suite.build(mode, factory)
-        cases = load_jsonl(rag_suite.DATASET)
-        return run_suite("rag", cases, fn, rag_suite.rag_score), rag_suite.BASELINE
-    if name == "mcp_attacks":
-        if live:
-            return None  # no model involved
-        return run_suite("mcp_attacks", _attack_cases(), _run_attack, _blocked), MCP_BASELINE
-    raise ValueError(f"unknown suite {name!r}")
-
-
-# ---- stage 2: the MCP attack suite as an eval (score 1 = attack blocked) ----------------------
-
-MCP_BASELINE = HERE / "baselines" / "mcp_attacks.json"
-
-
-def _attack_cases() -> list[EvalCase]:
-    from attacks.mcp import ATTACKS
-
-    return [EvalCase(id=a, input=a, tags=("attack",)) for a in sorted(ATTACKS)]
-
-
-def _run_attack(case: EvalCase) -> dict:
-    from attacks.mcp import run_attack
-
-    return {"succeeded": run_attack(case.input)}
-
-
-def _blocked(output: dict, case: EvalCase) -> float:
-    return 0.0 if output["succeeded"] else 1.0
-
-
-SUITES = ("smoke", "generator", "mcp_attacks", "rag")
-
-
-def _summary(report: Report) -> str:
-    d = report.to_dict()
-    line = (
-        f"{report.name}: n={d['n']} pass_rate={d['pass_rate']} mean_score={d['mean_score']} "
-        f"p95_latency_s={d['p95_latency_s']}"
-    )
-    usages = [
-        r.output["usage"]
-        for r in report.results
-        if isinstance(r.output, dict) and "usage" in r.output
-    ]
-    if usages:
-        tin = sum(u["input_tokens"] for u in usages)
-        tout = sum(u["output_tokens"] for u in usages)
-        line += f" tokens_in={tin} tokens_out={tout}"
-    return line
+    judge_model = os.environ.get("METAFORGE_JUDGE_MODEL", "claude-opus-5-5")
+    under_test = MeteredLLM(AnthropicLLM(model=model), model=model, ledger=ledger)
+    judge = MeteredLLM(AnthropicLLM(model=judge_model), model=judge_model, ledger=ledger)
+    return ledger, (lambda: under_test), (lambda: judge)
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--suite", choices=SUITES, action="append")
-    parser.add_argument("--live", action="store_true", help="use a real model; never gates")
+    parser = argparse.ArgumentParser(prog="evals.run")
+    parser.add_argument("--suite", choices=sorted(SUITES), action="append")
+    parser.add_argument("--live", action="store_true", help="real model; never gates")
+    parser.add_argument("--max-cost-usd", type=float, default=1.0)
     parser.add_argument("--update-baseline", action="store_true")
+    parser.add_argument("--reason", default="", help="required with --update-baseline")
+    parser.add_argument("--accept-regression", action="store_true")
     args = parser.parse_args(argv)
     if args.live and args.update_baseline:
         parser.error("baselines are offline only; --live cannot update them")
+    if args.update_baseline and not args.reason.strip():
+        parser.error("--update-baseline needs --reason")
 
+    mode = "live" if args.live else "replay"
+    names = args.suite or [n for n, s in SUITES.items() if mode in s.modes]
+    ledger = factory = judge_factory = None
+    if args.live:
+        ledger, factory, judge_factory = _live_factories(args.max_cost_usd)
+
+    rows: list[tuple] = []
     failed = False
-    for name in args.suite or SUITES:
-        ran = _run(name, args.live)
-        if ran is None:
+    ran: set[str] = set()
+    for name in names:
+        suite = SUITES[name]
+        if mode not in suite.modes:
+            print(f"{name}: skipped (no {mode} mode)")
             continue
-        report, baseline = ran
-        print(_summary(report))
-        for r in report.results:
-            if not r.passed:
-                print(f"  FAIL {r.case_id} score={r.score:.2f}{' ' + r.error if r.error else ''}")
+        cases = suite.load_cases(mode)
+        scorer = suite.scorer
+        if args.live and suite.live_scorer is not None:
+            scorer = suite.live_scorer(judge_factory)
+        spent_before = ledger.spent_usd if ledger else 0.0
+        report = run_suite(name, cases, suite.build(mode, factory), scorer)
+        cost = (ledger.spent_usd - spent_before) if ledger else 0.0
+        summary = summarize(report, cases, mode, cost_usd=cost)
+        ran.add(name)
+        write_report(REPORTS / f"{name}-{mode}.json", summary, report)
+        print(
+            f"{name}: n={summary.n} pass_rate={summary.pass_rate} mean_score={summary.mean_score} "
+            f"p95_latency_s={summary.p95_latency_s} tokens_in={summary.tokens_in} "
+            f"tokens_out={summary.tokens_out} cost_usd={summary.cost_usd}"
+        )
 
-        if args.live:
-            REPORTS.mkdir(exist_ok=True)
-            out = REPORTS / f"{name}-live.json"
-            out.write_text(json.dumps(report.to_dict(), indent=2, default=str) + "\n")
-            print(f"  report written to {out}")
-        elif args.update_baseline:
-            baseline.parent.mkdir(parents=True, exist_ok=True)
-            baseline.write_text(
-                json.dumps({"pass_rate": report.to_dict()["pass_rate"]}, indent=2) + "\n"
-            )
-            print(f"  baseline written to {baseline}")
-        elif baseline.exists():
-            for p in compare_to_baseline(report, json.loads(baseline.read_text())):
-                print("REGRESSION:", p)
+        gate: GateResult | None = None
+        if args.update_baseline:
+            try:
+                update_baseline(
+                    suite.baseline,
+                    summary,
+                    reason=args.reason,
+                    accept_regression=args.accept_regression,
+                )
+                print(f"  baseline written to {suite.baseline}")
+            except BaselineUpdateRefused as exc:
+                print(f"  REFUSED: {exc}")
                 failed = True
-        else:
-            print(f"  no baseline for {name}; run with --update-baseline to create one")
+        elif not args.live:
+            if suite.baseline.exists():
+                gate = check(
+                    summary,
+                    json.loads(suite.baseline.read_text()),
+                    rate_tolerance=suite.rate_tolerance,
+                    token_tolerance=suite.token_tolerance,
+                )
+            else:
+                gate = GateResult(problems=[f"{name}: no baseline; run --update-baseline --reason"])
+            for p in gate.problems:
+                print("  REGRESSION:", p)
+            for n in gate.notes:
+                print("  note:", n)
+            failed = failed or not gate.ok
+        rows.append((summary, gate))
+
+    if not args.live and not args.suite and not args.update_baseline:
+        for problem in check_all_suites_ran(ran, BASELINES):
+            print("REGRESSION:", problem)
+            failed = True
+    if ledger:
+        print(
+            f"live spend: ${ledger.spent_usd:.4f} of ${ledger.budget_usd:.2f} "
+            f"({ledger.calls} calls)"
+        )
+
+    table = markdown(rows)
+    step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if step_summary:
+        with open(step_summary, "a") as fh:
+            fh.write(f"## Evals ({mode})\n\n{table}\n")
     return 1 if failed else 0
 
 

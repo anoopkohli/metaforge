@@ -1,3 +1,37 @@
 {
-  "pass_rate": 0.9286
+  "version": 2,
+  "suite": "rag",
+  "fingerprint": "883db21937d1825d",
+  "n": 14,
+  "pass_rate": 0.9286,
+  "mean_score": 0.9762,
+  "tokens": {
+    "input": 3187,
+    "output": 283
+  },
+  "cases": {
+    "buddy-weeks-t1": true,
+    "carryover-t2": true,
+    "db-escalation-t2": true,
+    "db-latency-threshold-t0": true,
+    "expense-limit-t0": true,
+    "expense-limit-t1": true,
+    "laptop-days-t2": true,
+    "leave-notice-t1": true,
+    "lost-asset-desk-t2": false,
+    "lost-asset-hours-t0": true,
+    "pool-size-t1": true,
+    "queue-replicas-t0": true,
+    "queue-threshold-t1": true,
+    "receipts-t0": true
+  },
+  "history": [
+    {
+      "date": "2026-10-08",
+      "reason": "stage 4: baselines move to v2 (per-case results, dataset fingerprint, token totals)",
+      "pass_rate": 0.9286,
+      "n": 14,
+      "accepted_regression": false
+    }
+  ]
 }

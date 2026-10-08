@@ -113,3 +113,94 @@ def seed_demo(store: MetadataStore, n_tenants: int = 5, seed: int = 7) -> list[S
         )
         tenants.append(tenant)
     return tenants
+
+
+# ---- stage 3: synthetic tenant documents ------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SyntheticDocument:
+    doc_id: str
+    title: str
+    text: str
+    facts: dict[str, str]  # fact name -> exact string an answer must contain
+
+
+_TEAMS = ["facilities", "service", "operations", "workplace", "support"]
+_ROTATIONS = ["platform", "database", "infrastructure", "core-services"]
+
+
+def synthetic_documents(tenant: SyntheticTenant, seed: int = 7) -> list[SyntheticDocument]:
+    """Six policy and runbook documents with tenant-specific facts and the tenant's canary.
+
+    Every paragraph carries the canary, so any chunk that crosses a tenant boundary is detectable.
+    Facts are drawn from a per-tenant RNG, so two tenants' answers to the same question differ.
+    """
+    rng = random.Random(f"{seed}:{tenant.tenant_id}")
+    ref = f"(ref {tenant.canary})"
+    name = tenant.tenant_id.title()
+
+    limit = rng.choice([500, 750, 1000, 1500, 2500])
+    receipt = rng.choice([25, 50, 75])
+    carry = rng.randint(3, 15)
+    notice = rng.choice([5, 10, 14, 20])
+    hours = rng.choice([4, 12, 24, 48])
+    team = rng.choice(_TEAMS)
+    p95 = rng.choice([150, 250, 400, 800])
+    pool = rng.choice([20, 40, 60, 100])
+    rotation = rng.choice(_ROTATIONS)
+    backlog = rng.choice([1000, 5000, 10000, 50000])
+    workers = rng.choice([4, 8, 12, 16])
+    laptop = rng.randint(2, 7)
+    buddy = rng.choice([2, 4, 6, 8])
+
+    return [
+        SyntheticDocument(
+            "expense_policy",
+            f"{name} expense policy",
+            f"Expense reports above {limit} dollars need director approval before payment. {ref}\n\n"
+            f"Receipts are required for any single item over {receipt} dollars. Reports are "
+            f"submitted through the expense report object and paid monthly. {ref}",
+            {"expense_limit": str(limit), "receipt_threshold": str(receipt)},
+        ),
+        SyntheticDocument(
+            "leave_policy",
+            f"{name} leave policy",
+            f"Workers may carry over up to {carry} unused leave days into the next year. {ref}\n\n"
+            f"Planned leave longer than one week needs {notice} days notice, recorded as a leave "
+            f"request with start and end dates. {ref}",
+            {"carryover_days": str(carry), "notice_days": str(notice)},
+        ),
+        SyntheticDocument(
+            "asset_handling",
+            f"{name} asset handling",
+            f"Lost or stolen assets must be reported within {hours} hours to the {team} desk. {ref}"
+            f"\n\nEvery asset has a tag and may be assigned to one worker at a time. {ref}",
+            {"report_hours": str(hours), "asset_team": team},
+        ),
+        SyntheticDocument(
+            "runbook_db_latency",
+            f"{name} runbook: database latency",
+            f"If p95 query latency exceeds {p95} ms, first check connection pool saturation. The "
+            f"pool size is {pool} connections. {ref}\n\n"
+            f"If the pool is not saturated, look for long-running queries and lock waits. Escalate "
+            f"to the {rotation} on-call rotation after 15 minutes. {ref}",
+            {"latency_threshold_ms": str(p95), "pool_size": str(pool), "rotation": rotation},
+        ),
+        SyntheticDocument(
+            "runbook_queue_backlog",
+            f"{name} runbook: queue backlog",
+            f"When the job queue backlog passes {backlog} messages, scale the workers to {workers} "
+            f"replicas. {ref}\n\n"
+            f"If the backlog keeps growing after scaling, check for a poison message that fails "
+            f"and retries forever, and move it to the dead-letter queue. {ref}",
+            {"backlog_threshold": str(backlog), "worker_replicas": str(workers)},
+        ),
+        SyntheticDocument(
+            "onboarding",
+            f"{name} onboarding guide",
+            f"New workers receive a laptop within {laptop} days of their hire date. {ref}\n\n"
+            f"Each new worker joins a buddy program that lasts {buddy} weeks. {ref}",
+            {"laptop_days": str(laptop), "buddy_weeks": str(buddy)},
+        ),
+    ]

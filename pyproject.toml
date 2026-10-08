@@ -17,9 +17,13 @@ dev = [
     "pytest>=8",
     "ruff>=0.5",
     "mcp>=2.3,<3",
+    "psycopg[binary]>=3.2",
 ]
 mcp = [
     "mcp>=2.3,<3",
+]
+pg = [
+    "psycopg[binary]>=3.2",
 ]
 llm = [
     "anthropic>=0.40",
@@ -46,6 +50,7 @@ testpaths = ["tests"]
 addopts = "-q -m 'not live'"
 markers = [
     "live: calls a real LLM provider; skipped by default",
+    "pg: needs Postgres + pgvector (make pg-up); skipped when unavailable unless METAFORGE_REQUIRE_PG=1",
 ]
 
 [tool.ruff]

@@ -52,10 +52,33 @@ it cannot do.
 No naive mode in stage 1: the controls here are schema validation, and a "naive" generator would just be one
 with checks deleted. Naive mode arrives with the stage 3 attack suite, where it makes the attacks meaningful.
 
-## Stage 2 (MCP server) — to write before building
-- Model supplies a different tenant ID as a tool argument (server must inject and ignore it).
-- Tools that mutate (`propose_change`) invoked without confirmation.
-- Over-broad tool results leaking fields a tenant has hidden.
+## Stage 2 (MCP server)
+
+Four tools over the store: `list_objects`, `describe_object` (read-only), `propose_change` (validates a
+stage-1 proposal and parks it; no store write) and `apply_change` (the only write). One server process
+serves one tenant: the tenant comes from a signed token verified at startup (`METAFORGE_TOKEN`), never from
+a tool argument. The tool logic (`mcp_server/tools.py`) has no SDK dependency; the MCP adapter is thin.
+
+Confirmation for `apply_change` is a human approval collected by the MCP *client* (form elicitation, or
+the 2026-07-28 `input_required` round trip). The server cannot see a human, so the guarantee is: no write
+without a client-attested approval bound to that exact change, and no write at all if the client cannot
+ask. A client that auto-approves elicitations defeats this; that is a client configuration, recorded below.
+
+| # | Threat | Control | Test / attack | Status |
+|---|---|---|---|---|
+| 2.1 | Model passes `tenant_id` (or `tenant`, `tid`, `tenantId`) to reach another tenant | Tenant keys stripped before validation and recorded in the audit log; handlers only receive the session's `TenantContext` | attacks `tenant-arg-*`; `test_tenant_args_are_ignored_and_audited` | covered |
+| 2.2 | Unknown or mistyped tool arguments change behaviour | Strict pydantic argument models, `extra="forbid"` (after tenant-key stripping) | `test_unknown_arguments_are_rejected` | covered |
+| 2.3 | Tool results leak fields the tenant has hidden | `describe_object` returns the effective schema only | attack `hidden-field`; `test_describe_returns_effective_schema` | covered |
+| 2.4 | Error messages reveal that another tenant's object exists | One not-found message for foreign and non-existent names | attack `existence-oracle` | covered |
+| 2.5 | `apply_change` runs without human confirmation | Write requires a `Confirmation` object that only the adapter creates after an accepted elicitation; no elicitation support means no write | attacks `apply-without-confirmation`, `declined-confirmation`; `test_no_elicitation_support_means_no_write` | covered |
+| 2.6 | Client forges or replays a confirmation (2026-07-28 flow) | `request_state` is HMAC-signed over tenant, change ID, nonce and expiry with a per-process key; checked before the response is trusted | attacks `forged-request-state`, `state-for-other-change` | covered |
+| 2.7 | A pending change is applied by another tenant, applied twice, or applied after state changed | Pending changes keyed by (tenant, random ID), single-use, 10-minute TTL, re-validated at apply | attacks `foreign-change-id`, `replay-change-id`; `test_apply_revalidates` | covered |
+| 2.8 | Model writes through `propose_change` | `propose_change` stores nothing in the metadata store | `test_propose_does_not_write` | covered |
+| 2.9 | Stored labels carry injected instructions into the calling model | Tool results are structured JSON; labels were sanitised at write time (1.10) | `test_results_are_structured_json` | partial: the calling model still reads label text; output guard is planned for stage 3 |
+| 2.10 | Pending-change flooding | At most 20 pending changes per tenant | `test_pending_changes_are_capped` | covered |
+| 2.11 | Naive mode left on | Naive mode (trusts the model's `tenant_id`) needs `METAFORGE_UNSAFE_NAIVE_MCP=trust-model-tenant-arg` exactly, logs a warning on every call, and tests assert it is off by default | `test_naive_mode_is_off_by_default`, `test_naive_mode_needs_the_exact_env_value` | covered |
+| 2.12 | Client auto-approves elicitations | Out of the server's control; `apply_change` is annotated `destructiveHint` so clients prompt | n/a | accepted: document client setup in README |
+| 2.13 | Bug in one layer defeats isolation | Store filter is the second layer; RLS and output guard arrive in stage 3 | stage 0 isolation suite | planned (stage 3) |
 
 ## Stage 3 (RAG) — to write before building
 - Filter bypass, prompt injection, cross-tenant poisoning, embedding-space attacks, ingest-path leaks,

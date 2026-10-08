@@ -1,13 +1,13 @@
 """Deterministic platform simulation with injectable faults.
 
 Invariants:
-- Everything lives on one `ChaosEnvironment` object: a virtual clock, a metadata store, a job queue per
-  tenant, and the telemetry they produce. Faults change only that object. No global state, no I/O,
-  no real sleeping, so nothing here can affect anything outside a test or eval.
-- All telemetry is tagged with a tenant. Readers must filter by tenant; this module does not decide who
-  may read what (that is `triage.tools`).
-- Thresholds and sizes come from each tenant's runbooks (`core.synthetic.synthetic_documents`), so the
-  runbook an agent retrieves states the numbers the simulation actually uses.
+- Everything lives on one `ChaosEnvironment` object: a virtual clock, a metadata store, a job queue
+  per tenant, and the telemetry they produce. Faults change only that object. No global state, no
+  I/O, no real sleeping, so nothing here can affect anything outside a test or eval.
+- All telemetry is tagged with a tenant. Readers must filter by tenant; this module does not decide
+  who may read what (that is `triage.tools`).
+- Thresholds and sizes come from each tenant's runbooks (`core.synthetic.synthetic_documents`), so
+  the runbook an agent retrieves states the numbers the simulation actually uses.
 """
 
 from __future__ import annotations
@@ -258,7 +258,7 @@ class ChaosEnvironment:
                 "queue",
                 "ERROR",
                 f"job {msg.id} failed (attempt {msg.attempts}): could not process payload "
-                f"{msg.payload[:300]!r}",
+                f"{msg.payload[:600]!r}",
             )
         st.metrics["queue.backlog"].append(float(st.backlog))
         if rng.random() < 0.3:

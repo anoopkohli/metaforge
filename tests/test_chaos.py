@@ -1,4 +1,4 @@
-"""Stage 5 simulation: each fault is visible, isolated to its tenant, and fixed by the right remedy."""
+"""Stage 5 simulation: each fault is visible, confined to its tenant, and fixed by its remedy."""
 
 import sys
 

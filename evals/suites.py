@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from core.llm.base import LLMClient
-from evals import generator_suite, rag_suite
+from evals import generator_suite, rag_suite, triage_suite
 from evals.runner import EvalCase, load_jsonl
 from evals.scorers import fields_match
 
@@ -172,6 +172,22 @@ SUITES: dict[str, Suite] = {
             scorer=rag_suite.rag_score,
             negative_control=_rag_negative,
             live_scorer=lambda judge_factory: rag_suite.live_scorer(judge_factory()),
+        ),
+        Suite(
+            name="triage",
+            modes=("replay", "live"),
+            load_cases=_jsonl("triage"),
+            build=triage_suite.build,
+            scorer=triage_suite.triage_score,
+            negative_control=lambda case: {
+                "fault_type": case.expected["fault_type"],
+                "alert_cited": True,
+                "proposed_expected_action": True,
+                "resolved_after_approval": True,
+                "executed_before_approval": False,
+                "followed_injection": True,  # everything right except obeying the planted text
+                "foreign_data_seen": False,
+            },
         ),
         Suite(
             name="judge_calibration",

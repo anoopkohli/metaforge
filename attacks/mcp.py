@@ -1,11 +1,11 @@
-"""Attacks on the stage-2 MCP server. Each attack returns True if it *succeeded* (a security failure).
+"""Attacks on the stage-2 MCP server. Each returns True if it *succeeded* (a security failure).
 
-Every attack runs against a fresh seeded store. The attacker is tenant 0 (fjord); the victim is tenant 1
-(cinder). Success is judged objectively: the victim's canary or object appears in the attacker's results,
-or a write lands without a valid confirmation.
+Every attack runs against a fresh seeded store. The attacker is tenant 0 (fjord); the victim is
+tenant 1 (cinder). Success is judged objectively: the victim's canary or object appears in the
+attacker's results, or a write lands without a valid confirmation.
 
-In secure mode every attack must fail. In naive mode (see `mcp_server.tools`) the tenant-argument attacks
-must succeed, which proves the suite can tell the difference.
+In secure mode every attack must fail. In naive mode (see `mcp_server.tools`) the tenant-argument
+attacks must succeed, which proves the suite can tell the difference.
 """
 
 from __future__ import annotations
@@ -58,7 +58,14 @@ def _call(env: Env, ctx_tenant: SyntheticTenant, name: str, args: dict, **kw) ->
 
 
 def _leaks_victim(env: Env, result: dict | str) -> bool:
-    text = json.dumps(result) if isinstance(result, dict) else result
+    """The victim's canary anywhere, or the victim's object name in a successful result.
+
+    An error message that echoes a name the attacker typed is not a leak, so for errors only the
+    canary (which the attacker cannot know) counts.
+    """
+    if isinstance(result, str):
+        return env.victim.canary in result
+    text = json.dumps(result)
     return env.victim.canary in text or f"{env.victim.tenant_id}_asset" in text
 
 
@@ -72,7 +79,9 @@ def tenant_arg_list(env: Env) -> bool:
 
 def tenant_arg_describe(env: Env) -> bool:
     name = f"{env.victim.tenant_id}_asset"
-    result = _call(env, env.attacker, "describe_object", {"name": name, "tenant": env.victim.tenant_id})
+    result = _call(
+        env, env.attacker, "describe_object", {"name": name, "tenant": env.victim.tenant_id}
+    )
     return _leaks_victim(env, result)
 
 
@@ -134,7 +143,11 @@ def foreign_change_id(env: Env) -> bool:
     proposed = _call(env, env.victim, "propose_change", {"proposal": VEHICLE})
     change_id = proposed["change_id"]
     _call(
-        env, env.attacker, "apply_change", {"change_id": change_id}, confirmation=Confirmation(change_id)
+        env,
+        env.attacker,
+        "apply_change",
+        {"change_id": change_id},
+        confirmation=Confirmation(change_id),
     )
     return env.anyone_has_vehicle()
 
@@ -145,7 +158,9 @@ def replay_change_id(env: Env) -> bool:
     confirm = Confirmation(change_id)
     _call(env, env.attacker, "apply_change", {"change_id": change_id}, confirmation=confirm)
     env.store.delete_object(env.attacker.context(), "vehicle")
-    second = _call(env, env.attacker, "apply_change", {"change_id": change_id}, confirmation=confirm)
+    second = _call(
+        env, env.attacker, "apply_change", {"change_id": change_id}, confirmation=confirm
+    )
     return isinstance(second, dict) or env.anyone_has_vehicle()
 
 
@@ -204,14 +219,22 @@ def _accept():
 
 
 def forged_request_state(env: Env) -> bool:
+    """A well-formed state (right tenant, right change, future expiry) with a made-up signature.
+
+    A malformed string would be rejected before the signature is ever checked, so it would not test
+    the HMAC at all.
+    """
+    import time
+
     async def body(client):
         change_id = await _propose(client)
+        payload = f"{env.attacker.tenant_id}|{change_id}|{int(time.time()) + 300}|nonce"
         try:
             await client.call_tool(
                 "apply_change",
                 {"change_id": change_id},
                 input_responses=_accept(),
-                request_state="forged-state",
+                request_state=f"{payload}.{'0' * 64}",
             )
         except Exception:  # noqa: BLE001
             pass
@@ -262,7 +285,9 @@ ATTACKS: dict[str, Callable[[Env], bool]] = {
 }
 
 # Attacks that naive mode is *expected* to let through.
-NAIVE_EXPECTED_TO_SUCCEED = frozenset({"tenant-arg-list", "tenant-arg-describe", "tenant-arg-write"})
+NAIVE_EXPECTED_TO_SUCCEED = frozenset(
+    {"tenant-arg-list", "tenant-arg-describe", "tenant-arg-write"}
+)
 
 
 def run_attack(attack_id: str, naive: bool = False) -> bool:

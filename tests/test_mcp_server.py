@@ -143,3 +143,38 @@ def test_apply_of_unknown_change_does_not_prompt(env):
 
     result = run(server, body, elicitation_callback=confirm)
     assert result.is_error and asked == []
+
+
+def test_stdio_server_end_to_end(tmp_path, secret):
+    """Launch `python -m mcp_server` as a subprocess, the way an MCP client does."""
+    import os
+    import sys
+
+    from mcp import StdioServerParameters
+
+    from core.auth import issue_token
+    from core.store import MetadataStore
+    from core.synthetic import seed_demo
+
+    db = tmp_path / "stdio.db"
+    store = MetadataStore(str(db))
+    tenants = seed_demo(store)
+    store.close()
+    me, other = tenants[0], tenants[1]
+    params = StdioServerParameters(
+        command=sys.executable,
+        args=["-m", "mcp_server"],
+        env={
+            "METAFORGE_AUTH_SECRET": secret,
+            "METAFORGE_DB": str(db),
+            "METAFORGE_TOKEN": issue_token(secret, me.tenant_id),
+            "PATH": os.environ.get("PATH", ""),
+        },
+    )
+
+    async def body(client):
+        return await client.call_tool("list_objects", {"tenant_id": other.tenant_id})
+
+    result = run(params, body)
+    names = [o["name"] for o in result.structured_content["objects"]]
+    assert f"{me.tenant_id}_asset" in names and f"{other.tenant_id}_asset" not in names

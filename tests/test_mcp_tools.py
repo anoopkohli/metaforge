@@ -159,10 +159,16 @@ def test_change_ids_are_single_use_and_tenant_scoped(env):
     change_id = propose(tools, other)
     with pytest.raises(ToolError, match="no pending change"):
         tools.call(
-            me.context(), "apply_change", {"change_id": change_id}, confirmation=Confirmation(change_id)
+            me.context(),
+            "apply_change",
+            {"change_id": change_id},
+            confirmation=Confirmation(change_id),
         )
     ok = tools.call(
-        other.context(), "apply_change", {"change_id": change_id}, confirmation=Confirmation(change_id)
+        other.context(),
+        "apply_change",
+        {"change_id": change_id},
+        confirmation=Confirmation(change_id),
     )
     assert ok["applied"]
     with pytest.raises(ToolError, match="no pending change"):
@@ -197,7 +203,10 @@ def test_apply_revalidates(env):
     store.put_object(me.context(), ObjectDef.model_validate(VEHICLE["object"]))  # state changed
     with pytest.raises(ToolError, match="already exists"):
         tools.call(
-            me.context(), "apply_change", {"change_id": change_id}, confirmation=Confirmation(change_id)
+            me.context(),
+            "apply_change",
+            {"change_id": change_id},
+            confirmation=Confirmation(change_id),
         )
 
 

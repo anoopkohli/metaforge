@@ -61,10 +61,35 @@ def _run(name: str, live: bool) -> tuple[Report, Path] | None:
         return run_suite("generator", cases, fn, generator_suite.proposal_matches), (
             generator_suite.BASELINE
         )
+    if name == "mcp_attacks":
+        if live:
+            return None  # no model involved
+        return run_suite("mcp_attacks", _attack_cases(), _run_attack, _blocked), MCP_BASELINE
     raise ValueError(f"unknown suite {name!r}")
 
 
-SUITES = ("smoke", "generator")
+# ---- stage 2: the MCP attack suite as an eval (score 1 = attack blocked) ----------------------
+
+MCP_BASELINE = HERE / "baselines" / "mcp_attacks.json"
+
+
+def _attack_cases() -> list[EvalCase]:
+    from attacks.mcp import ATTACKS
+
+    return [EvalCase(id=a, input=a, tags=("attack",)) for a in sorted(ATTACKS)]
+
+
+def _run_attack(case: EvalCase) -> dict:
+    from attacks.mcp import run_attack
+
+    return {"succeeded": run_attack(case.input)}
+
+
+def _blocked(output: dict, case: EvalCase) -> float:
+    return 0.0 if output["succeeded"] else 1.0
+
+
+SUITES = ("smoke", "generator", "mcp_attacks")
 
 
 def _summary(report: Report) -> str:

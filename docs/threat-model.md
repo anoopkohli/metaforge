@@ -158,3 +158,22 @@ reads, the worst case for prompt injection.
 | 5.8 | Diagnosis text carries injected content to the human reader | Summary capped, single paragraph, printable; shown as plain text | `test_diagnosis_summary_is_plain` | partial: a misleading-but-plain summary is still possible; the human approves proposals, not prose |
 | 5.9 | Fault injection escapes the simulation | Faults act only on a `ChaosEnvironment` object; no global patching, no I/O | `test_chaos_has_no_global_side_effects` | covered |
 | 5.10 | Naive mode left on | Exact env value, warning on every step, tests assert off by default | `test_triage_naive_mode_is_off_by_default` | covered |
+
+## Demo web UI (`web/`)
+
+A local web app over stages 1-5: log in as a synthetic tenant, browse and change metadata, ask the
+documents, run an incident, and run the attack suites. It is a demo surface, but it is an HTTP
+surface, so it gets the same treatment as the rest.
+
+| # | Threat | Control | Test | Status |
+|---|---|---|---|---|
+| W.1 | Tenant taken from a request body, query or header | Tenant only from a signed session cookie (the stage 0 HMAC token); request bodies are strict models with no tenant field | `test_tenant_in_body_is_rejected`, `test_data_is_scoped_to_the_session_tenant` | covered |
+| W.2 | Forged or tampered session | HMAC token, `HttpOnly`, `SameSite=Strict`, 8-hour expiry | `test_tampered_cookie_is_rejected` | covered |
+| W.3 | Cross-site request forgery | `SameSite=Strict`, a custom header required on every state-changing request, and a matching `Origin` when one is sent; no CORS | `test_post_without_csrf_header_is_rejected`, `test_cross_origin_post_is_rejected` | covered |
+| W.4 | Stored XSS via tenant-controlled text (labels, documents, log payloads, model output) | The front end renders data only with `textContent`; strict CSP with no inline script; `nosniff` | `test_security_headers`, `test_front_end_never_uses_innerhtml` | covered |
+| W.5 | Exposure beyond this machine, DNS rebinding | Binds to 127.0.0.1; only `localhost`/`127.0.0.1` Host headers accepted | `test_unknown_host_is_rejected` | covered |
+| W.6 | Naive (deliberately vulnerable) mode reachable from the UI | The security lab runs attacks in a child process; naive env values exist only in that child's environment, never in the server's | `test_lab_runs_naive_only_in_a_child_process` | covered |
+| W.7 | Cost or load abuse | Input caps reused from each stage; lab and eval runs are single-flight; live model calls share a budget (`METAFORGE_UI_BUDGET_USD`, default $2) | `test_lab_is_single_flight`, `test_ui_budget_is_enforced` | covered |
+| W.8 | Errors leak internals | Generic error responses; details go to the server log only | `test_errors_are_generic` | covered |
+| W.9 | API key reaches the browser | The browser only learns whether live mode is on and the model name | `test_session_never_exposes_secrets` | covered |
+| W.10 | Approvals made by something other than the user | Approve endpoints are separate, state-changing requests (CSRF-protected) that the generator and agent cannot call | `test_agent_proposals_wait_for_ui_approval` | covered |

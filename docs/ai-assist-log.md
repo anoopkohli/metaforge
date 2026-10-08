@@ -14,6 +14,18 @@ This is part of the project: the point is to show how the tools were directed an
 
 ## Entries
 
+- 2026-10-08 · stage 5 · **Simulation bug.** The first queue model let arrivals outpace normal
+  capacity, so the backlog never drained even after the poison message was removed. Caught by a
+  per-fault check (inject, fix, does the alert clear?) run before writing the tests. Fix: a healthy
+  queue drains at a steady rate. That check became `test_fault_alerts_only_its_tenant_and_the_remedy_clears_it`.
+- 2026-10-08 · stage 5 · **Attack too weak to matter.** `runbook-injection` planted a runbook that was
+  almost all JSON, so the lexical retriever never returned it; the attack was "blocked" for the wrong
+  reason. Caught because it also failed to succeed in naive mode. Fix: write the planted runbook to rank
+  for the agent's query, as a real attacker would.
+- 2026-10-08 · stage 5 · **Overlapping layers (noted, kept).** Removing tenant-argument stripping did
+  not let the secure attack through: the strict argument schema rejects the unknown `tenant_id` key.
+  The audit test catches the missing stripping, so each layer is still tested.
+
 - 2026-10-08 · stage 4 · **Invented price.** The first `evals/pricing.py` gave Claude Haiku 5.5 a
   cache-read price of $0.01/M. The source table had no such figure; it was a plausible guess. Caught
   on review against the source before commit. Fix: charge cache reads at the full input price (an upper

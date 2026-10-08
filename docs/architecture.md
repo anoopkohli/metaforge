@@ -104,6 +104,25 @@ suites.py (registry) ─► run_suite ─► summarize ─► gate.check(baselin
   candidate as delimited data and fails closed.
 - **One registry.** CLI, CI and tests read `evals/suites.py`, so a suite cannot be half-registered.
 
+## Stage 5 chaos + triage
+
+```
+ChaosEnvironment (virtual clock) ── inject(fault, tenant) ──► metrics / logs / changes (tenant-tagged)
+        ▲                                                            │
+        │ approve(ctx, id, Confirmation)  ◄── human                  ▼
+TriageTools(ctx-scoped) ◄── JSON action ── LLMClient ◄── <observation> (data) ── run_triage (≤10 steps)
+        └─ propose_remediation: allow-list + bounds + tenant check ─► Proposal (status: proposed)
+```
+
+- **One loop, JSON actions.** `LLMClient` has no native tool calling, so each reply is one JSON
+  action; this keeps every model call behind the same interface as stages 1-4.
+- **Propose, never execute.** The same capability-object pattern as stage 2: execution needs a
+  `Confirmation` the model cannot create.
+- **Test against the worst model.** The gullible policy obeys every injected instruction, so the
+  attacks measure the controls. Resistance to in-policy suggestions is a model property, measured live.
+- **Runbook facts drive the simulation.** Thresholds and sizes come from each tenant's synthetic
+  runbooks, so retrieving the runbook genuinely helps.
+
 ## Decisions
 
 1. **Explicit `TenantContext` on every store call.** The context comes from `verify_token`, never from

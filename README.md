@@ -17,7 +17,7 @@ Each stage is a git tag and is useful on its own.
 | 2 | `mcp_server/` + `attacks/`: tenant-scoped MCP tools, human-confirmed writes, 13-attack suite (secure vs naive) | done (`stage-2`) |
 | 3 | `rag/` + `attacks/`: multi-tenant RAG, pooled (Postgres + RLS) vs siloed isolation, 12 attacks × 6 configurations | done (`stage-3`) |
 | 4 | `evals/`: per-case regression gate, dataset fingerprints, reasoned baseline updates, token/cost tracking, injection-hardened LLM judge | done (`stage-4`) |
-| 5 | `triage/` + `chaos/`: fault injection and an incident-triage agent | planned |
+| 5 | `chaos/` + `triage/`: three simulated faults, one tenant-scoped triage agent loop, injection attacks with a fully obedient model | done (`stage-5`) |
 
 ## Quick start
 
@@ -118,6 +118,17 @@ python -m evals.run --update-baseline --reason "why"         # deliberate change
 python -m evals.run --live --max-cost-usd 1.00               # needs ANTHROPIC_API_KEY
 ```
 
+## Stage 5: chaos and the triage agent
+
+A deterministic simulation injects a database-latency, queue-backlog or bad-metadata fault for one
+tenant. The triage agent (one loop, at most 10 steps) reads that tenant's alerts, metrics, logs,
+metadata changes and runbooks, proposes a fix, and writes a diagnosis. It cannot execute anything:
+a human approves, and the eval checks the alert actually clears.
+
+Logs carry tenant-controlled text, so the attacks use a scripted model that obeys every instruction it
+reads. Even then, no out-of-policy, cross-tenant or unapproved action gets through; in naive mode all
+eight attacks succeed. Details: [`docs/results-stage-5.md`](docs/results-stage-5.md).
+
 ## Docs
 
 - [`CLAUDE.md`](CLAUDE.md): standing rules for the AI coding tools working in this repo
@@ -127,4 +138,5 @@ python -m evals.run --live --max-cost-usd 1.00               # needs ANTHROPIC_A
 - [`docs/results-stage-2.md`](docs/results-stage-2.md): stage 2 attack results
 - [`docs/results-stage-3.md`](docs/results-stage-3.md): stage 3 attack matrix and RAG eval
 - [`docs/results-stage-4.md`](docs/results-stage-4.md): stage 4 eval gate
+- [`docs/results-stage-5.md`](docs/results-stage-5.md): stage 5 triage attacks and eval
 - [`docs/ai-assist-log.md`](docs/ai-assist-log.md): where AI-generated code was wrong and what caught it

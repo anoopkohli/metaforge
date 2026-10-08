@@ -183,7 +183,11 @@ class TriageTools:
             parsed = model.model_validate(raw)
         except ValidationError as exc:
             raise TriageError(f"invalid arguments: {_errors(exc)}") from exc
-        return getattr(self, f"_{name}")(ctx.tenant_id, parsed)
+        result = getattr(self, f"_{name}")(ctx.tenant_id, parsed)
+        if ignored and not self.naive:
+            result["ignored_arguments"] = list(ignored)
+            result["note"] = "tenant arguments are ignored; you only see this tenant"
+        return result
 
     # ---- read tools ---------------------------------------------------------------------------
 

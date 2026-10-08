@@ -14,6 +14,21 @@ This is part of the project: the point is to show how the tools were directed an
 
 ## Entries
 
+- 2026-10-08 · web UI · **Rendered `[object HTMLDivElement]`.** The answer view passed an array of
+  elements to `replaceChildren`, which does not flatten arrays (the `el()` helper does). Caught by
+  clicking through the UI in a browser, not by the API tests. Fix: spread the array.
+- 2026-10-08 · web UI · **Demo injection aimed at the wrong company.** The planted instruction
+  hard-coded `cinder` as the victim, so as cinder it was a same-company read and proved nothing. Caught
+  in the browser walkthrough. Fix: always target a different company than the one logged in.
+- 2026-10-08 · stage 5 · **Reference policy counted failures as progress.** After the fooled AI's
+  injected (rejected) proposal, the scripted policy thought it had already proposed a fix and stopped
+  without one. Caught in the browser walkthrough. Fix: decide from successful observations only; a test
+  now asserts the fooled AI still proposes the real fix. Eval baselines were unaffected.
+- 2026-10-08 · web UI · **Half-applied edit.** A multi-file edit script aborted on its third file
+  (ruff had reformatted the target line), so a later UI change in the same script never happened, and
+  I first blamed browser caching. Caught by checking the served file's content instead of assuming.
+  Lesson kept: one file per edit step, and verify the artifact, not the intent.
+
 - 2026-10-08 · stage 5 · **Simulation bug.** The first queue model let arrivals outpace normal
   capacity, so the backlog never drained even after the poison message was removed. Caught by a
   per-fault check (inject, fix, does the alert clear?) run before writing the tests. Fix: a healthy

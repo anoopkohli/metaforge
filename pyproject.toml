@@ -22,6 +22,10 @@ dev = [
 mcp = [
     "mcp>=2.3,<3",
 ]
+web = [
+    "starlette>=1.7,<2",
+    "uvicorn>=0.54",
+]
 pg = [
     "psycopg[binary]>=3.2",
 ]
@@ -43,7 +47,11 @@ include = [
     "triage*",
     "chaos*",
     "attacks*",
+    "web*",
 ]
+
+[tool.setuptools.package-data]
+web = ["static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

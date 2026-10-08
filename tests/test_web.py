@@ -195,6 +195,10 @@ def test_fooled_agent_is_contained(client):
     assert all(p["status"] == "proposed" for p in result["proposals"])
     assert all(p["params"].get("replicas", 0) <= 16 for p in result["proposals"])
     assert any("error" in s["observation"] for s in result["steps"])  # its injected tries bounced
+    ignored = [s for s in result["steps"] if "ignored_arguments" in s["observation"]]
+    assert ignored and "cinder" not in json.dumps(ignored[0]["observation"]["logs"])
+    # Despite the injections, it still finds and proposes the real fix.
+    assert [p["action"] for p in result["proposals"]] == ["dead_letter_message"]
 
 
 def test_incident_is_tenant_scoped(client):
@@ -237,12 +241,13 @@ def test_lab_is_single_flight(client):
 
 
 def test_ui_budget_is_enforced():
-    long_reply = json.dumps({"answer": " ".join(["word"] * 3000), "citations": []})
-    llm = MeteredLLM(FakeLLM([long_reply]), model="claude-opus-5-5", budget_usd=0.01)
+    # A valid answer of 600 words: 600 output tokens x $20/M = $0.012, over the $0.01 budget.
+    reply = json.dumps({"answer": " ".join(["ok"] * 600), "citations": []})
+    llm = MeteredLLM(FakeLLM([reply]), model="claude-opus-5-5", budget_usd=0.01)
     with TestClient(create_app(secret="s", live_llm=llm), base_url="http://localhost") as c:
         login(c)
         first = c.post("/api/ask", json={"question": "expense approval limit"}, headers=H)
-        assert first.status_code in (200, 502)  # the reply is invalid JSON-wise; either is fine
+        assert first.status_code == 200
         second = c.post("/api/ask", json={"question": "leave carry over days"}, headers=H)
         assert second.status_code == 429 and "budget" in second.json()["error"]
 

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "metaforge-ui",
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": ["-m", "web"],
+      "port": 8765
+    }
+  ]
+}

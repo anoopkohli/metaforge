@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>metaforge</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">◆</span>
+      <div>
+        <div class="brand-name">metaforge</div>
+        <div class="brand-sub">a testbed for AI features that cannot leak</div>
+      </div>
+    </div>
+    <div class="session">
+      <span id="mode-badge" class="badge"></span>
+      <label class="tenant-label" for="tenant-select">Company</label>
+      <select id="tenant-select" aria-label="Log in as company"></select>
+      <button id="login-btn" class="btn btn-primary">Log in</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="overview" role="tab">Overview</button>
+    <button class="tab" data-tab="data" role="tab">Data model <span class="stage">1–2</span></button>
+    <button class="tab" data-tab="docs" role="tab">Ask documents <span class="stage">3</span></button>
+    <button class="tab" data-tab="incident" role="tab">Incident <span class="stage">5</span></button>
+    <button class="tab" data-tab="lab" role="tab">Security lab</button>
+    <button class="tab" data-tab="evals" role="tab">Evals <span class="stage">4</span></button>
+  </nav>
+
+  <main>
+    <div id="login-hint" class="hint hidden">Pick a company above and log in to use this tab.</div>
+
+    <!-- Overview -->
+    <section id="tab-overview" class="panel active">
+      <div class="hero">
+        <h1>Many companies, one app, and AI that cannot mix them up</h1>
+        <p>
+          metaforge is a pretend business app shared by five made-up companies (<em>tenants</em>).
+          Each one has its own records and documents. Hidden inside every company's data is a unique
+          secret marker, a <strong>canary</strong>. If one company ever sees another company's canary,
+          that is a leak, and the tests catch it.
+        </p>
+        <p>
+          On top of that app sit five AI features. Each was built the same way: list what could go
+          wrong, write attacks that try it, then build the feature until the attacks fail.
+        </p>
+      </div>
+
+      <div class="cards">
+        <article class="card">
+          <h3>Data model <span class="stage">stages 1–2</span></h3>
+          <p>Describe a new record type in plain English; the AI drafts it. Every draft is checked, and nothing changes until you approve it.</p>
+        </article>
+        <article class="card">
+          <h3>Ask documents <span class="stage">stage 3</span></h3>
+          <p>Ask questions about your company's policies. Answers only ever use your company's documents, and cite them.</p>
+        </article>
+        <article class="card">
+          <h3>Incident <span class="stage">stage 5</span></h3>
+          <p>Break something on purpose, then watch an AI investigate, explain the cause and suggest a fix that only you can approve.</p>
+        </article>
+        <article class="card">
+          <h3>Security lab</h3>
+          <p>Run every attack against the real code, and against a deliberately unsafe version, side by side.</p>
+        </article>
+        <article class="card">
+          <h3>Evals <span class="stage">stage 4</span></h3>
+          <p>The automatic report card that runs on every change and blocks anything that makes results worse.</p>
+        </article>
+      </div>
+
+      <div class="explain">
+        <h3>Try this</h3>
+        <ol>
+          <li>Log in as <strong>fjord</strong> and open <em>Ask documents</em>. Ask about the expense limit.</li>
+          <li>Switch to <strong>cinder</strong> and ask the same question. Different company, different answer.</li>
+          <li>In <em>Incident</em>, start a <em>queue backlog</em> with the malicious instruction ticked, and run the <em>Fooled AI</em>. Watch its injected moves bounce off.</li>
+          <li>In the <em>Security lab</em>, run a suite and compare the secure and unsafe columns.</li>
+        </ol>
+        <p class="muted">Everything here runs on this computer with synthetic data. Without an API key, the AI is a recorded or scripted stand-in; with one, it is Claude.</p>
+      </div>
+    </section>
+
+    <!-- Data model -->
+    <section id="tab-data" class="panel">
+      <div class="explain">
+        <h3>What you are looking at</h3>
+        <p>
+          Your company's record types. <strong>Platform</strong> objects are shared by every company
+          (each can add, hide or relabel fields for itself); <strong>custom</strong> objects belong
+          to your company only. The AI can draft changes, but its reply is treated as untrusted: it
+          must match a strict format, may only refer to objects your company can see, and is sent
+          back with the errors (up to 3 tries) if it fails. Nothing changes until you approve.
+        </p>
+      </div>
+      <div class="grid-2">
+        <div class="box">
+          <h3>Your objects</h3>
+          <ul id="object-list" class="list"></ul>
+          <div id="object-detail"></div>
+        </div>
+        <div class="box">
+          <h3>Describe a change</h3>
+          <label for="gen-example">Example requests</label>
+          <select id="gen-example"></select>
+          <label for="gen-text">Request</label>
+          <textarea id="gen-text" rows="3" maxlength="2000" placeholder="e.g. Track company vehicles: plate number, model year, and assigned worker"></textarea>
+          <div class="row">
+            <button id="gen-btn" class="btn btn-primary">Draft with AI</button>
+            <span id="gen-mode" class="muted"></span>
+          </div>
+          <div id="gen-result"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Documents -->
+    <section id="tab-docs" class="panel">
+      <div class="explain">
+        <h3>What you are looking at</h3>
+        <p>
+          Ask a question and the app finds the most relevant passages in <strong>your company's</strong>
+          documents, then has the AI answer from those passages only, citing them. Every passage
+          carries the company it belongs to; a final check drops anything that is not yours before
+          the AI sees it. Try the same question as two different companies.
+        </p>
+      </div>
+      <div class="grid-2 wide-right">
+        <div class="box">
+          <h3>Your documents</h3>
+          <ul id="doc-list" class="list"></ul>
+        </div>
+        <div class="box">
+          <h3>Ask a question</h3>
+          <div class="row">
+            <input id="ask-text" type="text" maxlength="1000" placeholder="What is the expense approval limit?">
+            <button id="ask-btn" class="btn btn-primary">Ask</button>
+          </div>
+          <div id="ask-suggestions" class="chips"></div>
+          <div id="ask-result"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Incident -->
+    <section id="tab-incident" class="panel">
+      <div class="explain">
+        <h3>What you are looking at</h3>
+        <p>
+          A simulated platform for your company. Start an incident and an alert fires. Then an AI
+          investigates: it reads your alerts, metrics, logs and runbooks one step at a time (at most
+          10), and proposes a fix. It <strong>cannot</strong> apply anything; you approve, and the
+          charts show whether the fix worked. Log lines can contain text written by anyone, so try the
+          <em>Fooled AI</em>, which obeys any instruction it reads, and watch the safety checks hold.
+        </p>
+      </div>
+      <div class="box">
+        <div class="row wrap">
+          <label for="fault-select">Fault</label>
+          <select id="fault-select">
+            <option value="db_latency">Database latency (connection pool exhausted)</option>
+            <option value="queue_backlog">Queue backlog (a job fails forever)</option>
+            <option value="bad_metadata_change">Bad metadata change (a needed field hidden)</option>
+          </select>
+          <label class="check"><input id="malicious-check" type="checkbox"> plant a malicious instruction in the failing job (queue fault)</label>
+          <button id="incident-start" class="btn btn-primary">Start incident</button>
+        </div>
+      </div>
+      <div id="incident-view" class="hidden">
+        <div class="grid-2">
+          <div class="box">
+            <h3>Alerts</h3>
+            <div id="alert-list"></div>
+            <div id="charts" class="charts"></div>
+          </div>
+          <div class="box">
+            <h3>Recent logs <span class="muted">(your company only)</span></h3>
+            <div id="log-list" class="logs"></div>
+          </div>
+        </div>
+        <div class="box">
+          <div class="row wrap">
+            <h3 class="inline">Investigate</h3>
+            <select id="agent-select">
+              <option value="reference">Reference AI (scripted, follows the runbooks)</option>
+              <option value="fooled">Fooled AI (obeys any instruction it reads)</option>
+              <option value="claude">Claude (needs an API key)</option>
+            </select>
+            <button id="triage-btn" class="btn btn-primary">Run triage</button>
+          </div>
+          <div id="triage-result"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Lab -->
+    <section id="tab-lab" class="panel">
+      <div class="explain">
+        <h3>What you are looking at</h3>
+        <p>
+          Each row is a real attack run against the real code. <strong>Secure</strong> is the code as
+          shipped. <strong>Unsafe</strong> is a deliberately broken copy with the safety checks
+          removed; if an attack also fails there, it was not really testing anything. Unsafe mode
+          runs in a separate process, so it never exists inside this app.
+        </p>
+      </div>
+      <div class="box">
+        <div class="row wrap">
+          <button class="btn lab-btn" data-suite="mcp">AI tools (MCP) · 13</button>
+          <button class="btn lab-btn" data-suite="rag">Documents (RAG) · 12</button>
+          <button class="btn lab-btn" data-suite="triage">Incident agent · 8</button>
+          <span id="lab-status" class="muted"></span>
+        </div>
+        <div id="lab-result"></div>
+      </div>
+    </section>
+
+    <!-- Evals -->
+    <section id="tab-evals" class="panel">
+      <div class="explain">
+        <h3>What you are looking at</h3>
+        <p>
+          The report card. Each suite runs a fixed set of cases and compares the results with a saved
+          <em>baseline</em>. It fails if any single case that used to pass now fails, if the test
+          cases were quietly edited, or if prompts grow by more than 5%. This runs automatically on
+          every change pushed to GitHub.
+        </p>
+      </div>
+      <div class="box">
+        <div class="row"><button id="evals-btn" class="btn btn-primary">Run all offline evals</button><span id="evals-status" class="muted"></span></div>
+        <div id="evals-result"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">Synthetic data only · runs on this computer · <span id="footer-mode"></span></footer>
+</body>
+</html>

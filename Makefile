@@ -2,7 +2,7 @@ PY ?= python3
 VENV := .venv
 BIN := $(VENV)/bin
 
-.PHONY: install test lint fmt seed evals evals-live pg-up pg-down pg-psql up down clean
+.PHONY: install test lint fmt seed evals evals-live ui pg-up pg-down pg-psql up down clean
 
 install:
 	$(PY) -m venv $(VENV)
@@ -29,6 +29,10 @@ evals:
 # Real model, never gates CI. Needs ANTHROPIC_API_KEY and `pip install -e ".[llm]"`.
 evals-live:
 	$(BIN)/python -m evals.run --live --max-cost-usd 1.00
+
+# Demo web UI on http://127.0.0.1:8765 (offline unless ANTHROPIC_API_KEY is set).
+ui:
+	$(BIN)/python -m web
 
 # Project-local Postgres + pgvector for stage 3 (needs: brew install postgresql@17 pgvector).
 pg-up:

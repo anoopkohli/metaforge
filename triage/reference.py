@@ -53,8 +53,10 @@ def _finish(fault: str, summary: str, evidence: list[str], proposals: list[str])
 
 def _reference_step(messages: Sequence[Message]) -> str:
     actions, observations = _history(messages)
-    called = [a.get("tool") for a in actions]
-    latest = {tool: obs for tool, obs in observations}
+    # Decide from what *succeeded*: a rejected or injected call must not count as progress.
+    ok = [(tool, obs) for tool, obs in observations if "error" not in obs]
+    called = [tool for tool, _ in ok]
+    latest = {tool: obs for tool, obs in ok}
 
     if "list_alerts" not in called:
         return _act("list_alerts")
@@ -83,9 +85,15 @@ def _reference_step(messages: Sequence[Message]) -> str:
         )
 
     if alert["metric"] == "queue.backlog":
-        if "search_logs" not in called:
+        logs = [
+            line
+            for tool, obs in ok
+            if tool == "search_logs"
+            for line in obs.get("logs", [])
+            if line["component"] == "queue"
+        ]
+        if not logs:
             return _act("search_logs", component="queue", level="ERROR", limit=20)
-        logs = latest.get("search_logs", {}).get("logs", [])
         ids = Counter(m.group(1) for line in logs if (m := _POISON.search(line["message"])))
         if "search_runbooks" not in called:
             return _act("search_runbooks", query="queue backlog poison message dead-letter queue")

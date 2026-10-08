@@ -19,6 +19,24 @@ Each stage is a git tag and is useful on its own.
 | 4 | `evals/`: per-case regression gate, dataset fingerprints, reasoned baseline updates, token/cost tracking, injection-hardened LLM judge | done (`stage-4`) |
 | 5 | `chaos/` + `triage/`: three simulated faults, one tenant-scoped triage agent loop, injection attacks with a fully obedient model | done (`stage-5`) |
 
+## Try it in a browser
+
+```bash
+make install
+make ui        # http://127.0.0.1:8765
+```
+
+A local web app over all five stages: log in as one of five synthetic companies, draft a data change
+with AI and approve it, ask the company's documents, break the simulated platform and watch an AI
+triage it (including one that obeys planted instructions), run every attack in secure vs unsafe mode,
+and run the eval gate. It works offline with stand-in models; set `ANTHROPIC_API_KEY` first to use
+Claude (budget-capped by `METAFORGE_UI_BUDGET_USD`, default $2). `make pg-up` first adds the Postgres
+row-level-security configurations to the security lab.
+
+The UI is held to the same standard as the rest: tenant from a signed `HttpOnly`/`SameSite=Strict`
+cookie only, CSRF header checks, strict CSP with no inline script, all data rendered as text,
+localhost only, and unsafe mode confined to a child process (threat model entries W.1-W.10).
+
 ## Quick start
 
 ```bash

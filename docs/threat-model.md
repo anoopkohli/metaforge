@@ -24,7 +24,7 @@ Status: `covered` (test exists and passes), `planned` (stage noted), `accepted` 
 | 0.6 | Tenant ID leaks across concurrent requests | Context carried in a `ContextVar`, restored on exit | `test_concurrent_tasks_do_not_see_each_others_tenant` | covered |
 | 0.7 | Tenant defines an object that shadows a platform object | Name conflict rejected; use overrides | `test_custom_object_cannot_shadow_a_platform_object` | covered |
 | 0.8 | Invalid override corrupts effective schema | Override validated against base before storing | `test_override_cannot_hide_required_or_unknown_fields` | covered |
-| 0.9 | Single application bug defeats isolation (no second layer) | Postgres row-level security as a database-enforced layer | n/a | planned (stage 3) |
+| 0.9 | Single application bug defeats isolation (no second layer) | Postgres row-level security as a database-enforced layer | `rls-direct-sql` (stage 3, RAG chunks); the metadata store itself stays on SQLite | covered for RAG chunks |
 | 0.10 | Weak or leaked signing secret | Secret from environment, no default, startup fails without it | `Settings.from_env` | accepted: dev tokens only; swap for a real IdP before any real deployment |
 
 ## Stage 1 (generator)
@@ -78,11 +78,41 @@ ask. A client that auto-approves elicitations defeats this; that is a client con
 | 2.10 | Pending-change flooding | At most 20 pending changes per tenant | `test_pending_changes_are_capped` | covered |
 | 2.11 | Naive mode left on | Naive mode (trusts the model's `tenant_id`) needs `METAFORGE_UNSAFE_NAIVE_MCP=trust-model-tenant-arg` exactly, logs a warning on every call, and tests assert it is off by default | `test_naive_mode_is_off_by_default`, `test_naive_mode_needs_the_exact_env_value` | covered |
 | 2.12 | Client auto-approves elicitations | Out of the server's control; `apply_change` is annotated `destructiveHint` so clients prompt | n/a | accepted: document client setup in README |
-| 2.13 | Bug in one layer defeats isolation | Store filter is the second layer; RLS and output guard arrive in stage 3 | stage 0 isolation suite | planned (stage 3) |
+| 2.13 | Bug in one layer defeats isolation | Store filter is the second layer; RLS and output guard arrive in stage 3 for RAG | stage 0 isolation suite | partial: metadata store has no RLS (SQLite) |
 
-## Stage 3 (RAG) — to write before building
-- Filter bypass, prompt injection, cross-tenant poisoning, embedding-space attacks, ingest-path leaks,
-  cache leaks, error/log leaks. See the attack catalogue in `attacks/`.
+## Stage 3 (RAG)
+
+Tenants ingest documents; questions are answered from retrieved chunks by a model through `LLMClient`.
+Two isolation strategies sit behind one `VectorIndex` interface:
+
+- **pooled**: one shared Postgres table with pgvector. Isolation layers: (1) the application filters on
+  `tenant_id` in every statement; (2) Postgres row-level security, keyed on a transaction-local
+  `app.tenant_id` setting, for the non-owner application role; (3) an output guard drops any retrieved
+  chunk whose tenant is not the caller's, before it reaches a prompt or a cache.
+- **siloed**: one SQLite database per tenant. Isolation is structural: a tenant's handle only opens its
+  own file, whose path is derived from the validated tenant ID. The output guard still applies.
+
+Embeddings come from a deterministic offline hashing embedder (no provider yet). Naive mode
+(`METAFORGE_UNSAFE_NAIVE_RAG=disable-tenant-filters`) removes the application-layer controls; it does not
+switch off RLS, which is a separate, database-level fact. The attack table therefore has three columns for
+pooled: secure; naive app + RLS; naive app + no RLS (table-owner connection).
+
+| # | Threat | Control | Attack / test | Status |
+|---|---|---|---|---|
+| 3.1 | Query retrieves another tenant's chunks (filter missing or bypassed) | App filter on every statement; RLS (pooled); separate database (siloed); output guard | `query-victim-content`, `rls-direct-sql` | covered |
+| 3.2 | Filter injection through query text | Query text is only ever embedded, never put into SQL; all SQL parameterised | `filter-injection-query` | covered |
+| 3.3 | Cross-tenant poisoning: a tenant ingests text crafted to rank first for another tenant's questions | Retrieval is scoped before ranking, so foreign chunks never compete | `poison-victim-results` | covered |
+| 3.4 | Ingest payload names another tenant | Tenant only from `TenantContext`; ingest schema forbids extra keys | `ingest-tenant-override` | covered |
+| 3.5 | Document ID collision overwrites or deletes another tenant's document | Keys are (tenant, doc ID); every write and delete filters on tenant; RLS `WITH CHECK` | `doc-id-collision`, `delete-victim-doc` | covered |
+| 3.6 | Answer cache serves one tenant's answer to another | Cache key includes tenant ID and the tenant's index version | `cache-leak` | covered |
+| 3.7 | Prompt injection in a tenant's own document tries to exfiltrate other tenants' data | The model only ever receives the caller's chunks (layers above), so there is nothing foreign to exfiltrate; chunks are delimited as data | `injected-doc-exfiltration` | covered for cross-tenant; accepted: an injected document can still mislead answers *within* its own tenant |
+| 3.8 | Answer cites chunks that were not retrieved, or invents sources | Structured answer validated with bounded retries; citations must be a subset of retrieved chunk IDs | `test_citations_must_come_from_retrieved_chunks` | covered |
+| 3.9 | Error messages reveal that another tenant's document exists | One not-found message for foreign and missing IDs | `error-oracle` | covered |
+| 3.10 | Logs carry document text, questions or canaries | Logs record IDs, counts and hashes only | `log-leak` | covered |
+| 3.11 | Code runs with no tenant set and sees everything | `MissingTenantContext` in the service; with no `app.tenant_id`, RLS returns no rows | `missing-context`, `test_rls_without_tenant_setting_returns_nothing` | covered |
+| 3.12 | Siloed path traversal via tenant ID | Tenant IDs validated by regex at construction; file name built from that ID only | `test_silo_paths_stay_under_root` | covered |
+| 3.13 | Oversized documents or queries (cost, DoS) | Caps on document size, chunk count, question length and `k` | `test_limits` | covered |
+| 3.14 | Naive mode left on | Exact env value, warning on every call, tests assert off by default | `test_rag_naive_mode_is_off_by_default` | covered |
 
 ## Stage 5 (triage) — to write before building
 - Agent acts on injected content in logs; agent proposes remediation outside its tenant scope.

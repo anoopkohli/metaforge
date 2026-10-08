@@ -19,6 +19,7 @@ def pg(pg_dsns):
 
 def test_migration_is_idempotent_and_role_cannot_bypass_rls(pg):
     import psycopg
+
     from rag.pg_index import APP_ROLE, migrate
 
     migrate(pg.admin)  # second run is a no-op
@@ -36,9 +37,9 @@ def test_migration_is_idempotent_and_role_cannot_bypass_rls(pg):
 def test_rls_without_tenant_setting_returns_nothing(pg, seeded):
     import psycopg
     from conftest import first_doc_llm
-    from rag.pg_index import PooledPgIndex
 
     from rag import RagService
+    from rag.pg_index import PooledPgIndex
 
     _, tenants = seeded
     service = RagService(PooledPgIndex(pg.app), HashingEmbedder(), first_doc_llm())
@@ -68,9 +69,9 @@ def test_rls_with_check_blocks_writing_another_tenants_rows(pg):
 
 def test_pooled_and_silo_rank_the_same(pg, seeded):
     from conftest import first_doc_llm
-    from rag.pg_index import PooledPgIndex
 
     from rag import RagService, SiloIndex
+    from rag.pg_index import PooledPgIndex
 
     _, tenants = seeded
     me = tenants[0]
@@ -84,7 +85,30 @@ def test_pooled_and_silo_rank_the_same(pg, seeded):
             service.ingest(
                 me.context(), {"doc_id": doc.doc_id, "title": doc.title, "text": doc.text}
             )
-        hits = service.retrieve(me.context(), "pool size connection saturation latency", k=3)
-        rankings.append([h.chunk.chunk_id for h in hits])
+        hits = service.retrieve(me.context(), "pool size connection saturation latency", k=5)
+        # Exact ties (e.g. two chunks at 0.0) may order differently: Postgres computes distances in
+        # float4, SQLite here in Python floats. Compare scores, with tie order normalised.
+        rankings.append(sorted((-round(h.score, 5), h.chunk.chunk_id) for h in hits))
         service.close()
     assert rankings[0] == rankings[1]
+
+
+def test_pooled_app_filter_isolates_on_its_own(pg, seeded):
+    """Layer 1 alone: connected as the owner (RLS does not apply), with no service-level guard."""
+    from rag.pg_index import PooledPgIndex
+
+    _, tenants = seeded
+    me, other = tenants[0], tenants[1]
+    index = PooledPgIndex(pg.admin)
+    embed = HashingEmbedder()
+    for tenant in (me, other):
+        doc = synthetic_documents(tenant)[0]
+        index.upsert_document(
+            tenant.context(), doc.doc_id, doc.title, [(doc.text, embed.embed([doc.text])[0])]
+        )
+    hits = index.search(me.context(), embed.embed(["expense approval limit"])[0], k=10)
+    assert hits and {h.chunk.tenant_id for h in hits} == {me.tenant_id}
+    assert index.delete_document(me.context(), "expense_policy")
+    hits = index.search(other.context(), embed.embed(["expense approval limit"])[0], k=10)
+    assert [h.chunk.tenant_id for h in hits] == [other.tenant_id]  # other's copy survived
+    index.close()

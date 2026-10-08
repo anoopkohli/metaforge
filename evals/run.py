@@ -16,7 +16,7 @@ import os
 import sys
 from pathlib import Path
 
-from evals import generator_suite
+from evals import generator_suite, rag_suite
 from evals.runner import EvalCase, Report, compare_to_baseline, load_jsonl, run_suite
 from evals.scorers import fields_match
 
@@ -61,6 +61,12 @@ def _run(name: str, live: bool) -> tuple[Report, Path] | None:
         return run_suite("generator", cases, fn, generator_suite.proposal_matches), (
             generator_suite.BASELINE
         )
+    if name == "rag":
+        mode = "live" if live else "replay"
+        factory = _live_llm_factory() if live else None
+        fn = rag_suite.build(mode, factory)
+        cases = load_jsonl(rag_suite.DATASET)
+        return run_suite("rag", cases, fn, rag_suite.rag_score), rag_suite.BASELINE
     if name == "mcp_attacks":
         if live:
             return None  # no model involved
@@ -89,7 +95,7 @@ def _blocked(output: dict, case: EvalCase) -> float:
     return 0.0 if output["succeeded"] else 1.0
 
 
-SUITES = ("smoke", "generator", "mcp_attacks")
+SUITES = ("smoke", "generator", "mcp_attacks", "rag")
 
 
 def _summary(report: Report) -> str:

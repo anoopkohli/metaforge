@@ -1,4 +1,4 @@
-"""Stage 3 RAG service on the siloed index (offline): threat-model entries 3.x that are not attacks."""
+"""Stage 3 RAG service on the siloed index (offline): threat-model entries that are not attacks."""
 
 import json
 import logging

@@ -1,0 +1,18 @@
+# Stage-3 RAG golden set. Tenants from seed_demo(seed=7): 0 = fjord, 1 = cinder, 2 = gable.
+# Every tenant has the same six documents with different facts (core.synthetic.synthetic_documents),
+# so a correct answer for one tenant is wrong for another. expected.fact names the fact whose value
+# (looked up at run time for that tenant) the answer must contain.
+{"id": "expense-limit-t0", "tags": ["policy"], "input": {"tenant_index": 0, "question": "What is the expense approval limit?"}, "expected": {"doc": "expense_policy", "fact": "expense_limit"}}
+{"id": "expense-limit-t1", "tags": ["policy", "per-tenant"], "input": {"tenant_index": 1, "question": "What is the expense approval limit?"}, "expected": {"doc": "expense_policy", "fact": "expense_limit"}}
+{"id": "receipts-t0", "tags": ["policy"], "input": {"tenant_index": 0, "question": "Over what amount are receipts required for an item?"}, "expected": {"doc": "expense_policy", "fact": "receipt_threshold"}}
+{"id": "carryover-t2", "tags": ["policy"], "input": {"tenant_index": 2, "question": "How many unused leave days can be carried over into next year?"}, "expected": {"doc": "leave_policy", "fact": "carryover_days"}}
+{"id": "leave-notice-t1", "tags": ["policy"], "input": {"tenant_index": 1, "question": "How much notice is needed for planned leave longer than a week?"}, "expected": {"doc": "leave_policy", "fact": "notice_days"}}
+{"id": "lost-asset-hours-t0", "tags": ["policy"], "input": {"tenant_index": 0, "question": "How quickly must a lost or stolen asset be reported?"}, "expected": {"doc": "asset_handling", "fact": "report_hours"}}
+{"id": "lost-asset-desk-t2", "tags": ["policy"], "input": {"tenant_index": 2, "question": "Which desk do I report a stolen asset to?"}, "expected": {"doc": "asset_handling", "fact": "asset_team"}}
+{"id": "db-latency-threshold-t0", "tags": ["runbook"], "input": {"tenant_index": 0, "question": "What p95 query latency threshold starts the database runbook?"}, "expected": {"doc": "runbook_db_latency", "fact": "latency_threshold_ms"}}
+{"id": "pool-size-t1", "tags": ["runbook"], "input": {"tenant_index": 1, "question": "What is the database connection pool size?"}, "expected": {"doc": "runbook_db_latency", "fact": "pool_size"}}
+{"id": "db-escalation-t2", "tags": ["runbook"], "input": {"tenant_index": 2, "question": "Which on-call rotation do we escalate database latency to?"}, "expected": {"doc": "runbook_db_latency", "fact": "rotation"}}
+{"id": "queue-replicas-t0", "tags": ["runbook"], "input": {"tenant_index": 0, "question": "When the job queue backlog grows, how many worker replicas should we scale to?"}, "expected": {"doc": "runbook_queue_backlog", "fact": "worker_replicas"}}
+{"id": "queue-threshold-t1", "tags": ["runbook"], "input": {"tenant_index": 1, "question": "At what queue backlog size do we scale the workers?"}, "expected": {"doc": "runbook_queue_backlog", "fact": "backlog_threshold"}}
+{"id": "buddy-weeks-t1", "tags": ["onboarding"], "input": {"tenant_index": 1, "question": "How long does the buddy program last for new workers?"}, "expected": {"doc": "onboarding", "fact": "buddy_weeks"}}
+{"id": "laptop-days-t2", "tags": ["onboarding"], "input": {"tenant_index": 2, "question": "Within how many days does a new worker get a laptop?"}, "expected": {"doc": "onboarding", "fact": "laptop_days"}}

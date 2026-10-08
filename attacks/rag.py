@@ -2,13 +2,14 @@
 
 Configurations: strategy (`silo` | `pooled`), naive mode on/off, and for pooled whether the index
 connects as the RLS-bound application role (`rls=True`) or as the table owner (`rls=False`).
-`expected_success()` is the claim this project makes about each configuration; the tests assert that
-every attack's real outcome matches it, so the matrix in `docs/results-stage-3.md` is checked, not typed.
+`expected_success()` is the claim this project makes about each configuration; the tests assert
+that every attack's real outcome matches it, so the matrix in `docs/results-stage-3.md` is checked,
+not typed.
 
-The attacker is tenant 0 (fjord), the victim tenant 1 (cinder). Both ingest the six synthetic documents;
-the victim also ingests one private document whose ID only the victim uses. Detection is objective: the
-victim's canary reaching the attacker, the attacker's chunks reaching the victim, or the victim's
-private document changing.
+The attacker is tenant 0 (fjord), the victim tenant 1 (cinder). Both ingest the six synthetic
+documents; the victim also ingests one private document whose ID only the victim uses. Detection is
+objective: the victim's canary reaching the attacker, the attacker's chunks reaching the victim, or
+the victim's private document changing.
 """
 
 from __future__ import annotations
@@ -237,6 +238,7 @@ def missing_context(env: Env) -> bool:
 def rls_direct_sql(env: Env) -> bool:
     """Simulate an application bug: a raw query with no tenant filter, as the attacker's session."""
     import psycopg
+
     from rag.pg_index import discover_dsns
 
     dsns = discover_dsns()

@@ -8,6 +8,25 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: metaforge_admin
+          POSTGRES_DB: metaforge
+          # Throwaway CI container reachable only from this job; no passwords to manage or leak.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U metaforge_admin -d metaforge"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      METAFORGE_PG_ADMIN_DSN: host=localhost port=5432 dbname=metaforge user=metaforge_admin
+      METAFORGE_PG_APP_DSN: host=localhost port=5432 dbname=metaforge user=metaforge_app
+      METAFORGE_REQUIRE_PG: "1"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7

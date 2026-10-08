@@ -1,8 +1,8 @@
-# Not needed for stage 0 (the store uses SQLite). Reserved for stage 3, where the shared-index
-# isolation strategy uses Postgres + pgvector with row-level security as a second enforcement layer.
+# Optional alternative to `make pg-up` (Homebrew) for stage 3's pooled RAG index: Postgres 17 +
+# pgvector. Point METAFORGE_PG_ADMIN_DSN / METAFORGE_PG_APP_DSN at it (see README).
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg17
     environment:
       POSTGRES_USER: metaforge
       POSTGRES_PASSWORD: metaforge-dev-only

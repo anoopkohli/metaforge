@@ -158,7 +158,8 @@ def synthetic_documents(tenant: SyntheticTenant, seed: int = 7) -> list[Syntheti
         SyntheticDocument(
             "expense_policy",
             f"{name} expense policy",
-            f"Expense reports above {limit} dollars need director approval before payment. {ref}\n\n"
+            f"Expense reports above {limit} dollars need director approval before payment. "
+            f"{ref}\n\n"
             f"Receipts are required for any single item over {receipt} dollars. Reports are "
             f"submitted through the expense report object and paid monthly. {ref}",
             {"expense_limit": str(limit), "receipt_threshold": str(receipt)},

@@ -15,7 +15,7 @@ Each stage is a git tag and is useful on its own.
 | 0 | Core: tenant store, token auth, `TenantContext`, LLM adapter, tracing, synthetic data, thin eval runner | done (`stage-0`) |
 | 1 | `generator/`: natural language to a validated, tenant-scoped metadata proposal; repair loop; golden-set evals (replay + live) | done (`stage-1`) |
 | 2 | `mcp_server/` + `attacks/`: tenant-scoped MCP tools, human-confirmed writes, 13-attack suite (secure vs naive) | done (`stage-2`) |
-| 3 | `rag/` + `attacks/`: multi-tenant RAG, two isolation strategies, canary-based leak attacks | planned |
+| 3 | `rag/` + `attacks/`: multi-tenant RAG, pooled (Postgres + RLS) vs siloed isolation, 12 attacks × 6 configurations | done (`stage-3`) |
 | 4 | `evals/`: mature harness with cost/latency tracking and a CI regression gate | planned |
 | 5 | `triage/` + `chaos/`: fault injection and an incident-triage agent | planned |
 
@@ -29,7 +29,8 @@ make seed      # demo tenants into ./metaforge.db
 ```
 
 Python 3.11+. The only core runtime dependency is `pydantic`. The MCP SDK, provider SDKs and OpenTelemetry are optional
-extras (`.[mcp]`, `.[llm]`, `.[otel]`); `.[dev]` includes the MCP SDK so its tests run in CI.
+extras (`.[mcp]`, `.[pg]`, `.[llm]`, `.[otel]`); `.[dev]` includes the MCP SDK and psycopg so their
+tests run in CI.
 
 ## The core idea
 
@@ -87,6 +88,22 @@ claude mcp add metaforge \
 Keep approvals manual: the confirmation step is only as strong as the client's approval prompt.
 Results, attack table and mutation check: [`docs/results-stage-2.md`](docs/results-stage-2.md).
 
+## Stage 3: multi-tenant RAG
+
+Two isolation strategies behind one interface: **pooled** (one Postgres + pgvector table, application
+filter + forced row-level security + output guard) and **siloed** (one SQLite database per tenant).
+The attack suite runs every attack in six configurations and asserts the outcome of each cell.
+
+```bash
+brew install postgresql@17 pgvector   # once
+make pg-up                            # project-local Postgres in .pgdata/ (socket only, no TCP)
+make test                             # pg tests skip if Postgres is down; CI requires them
+```
+
+The headline result: with correct application code but no RLS, one raw query that forgets the tenant
+filter leaks every tenant; with RLS, the same bug is contained, and RLS even absorbs a fully naive
+application except for its cache. Full matrix: [`docs/results-stage-3.md`](docs/results-stage-3.md).
+
 ## Docs
 
 - [`CLAUDE.md`](CLAUDE.md): standing rules for the AI coding tools working in this repo
@@ -94,4 +111,5 @@ Results, attack table and mutation check: [`docs/results-stage-2.md`](docs/resul
 - [`docs/threat-model.md`](docs/threat-model.md): threats, controls, and the tests that cover them
 - [`docs/results-stage-1.md`](docs/results-stage-1.md): stage 1 eval results
 - [`docs/results-stage-2.md`](docs/results-stage-2.md): stage 2 attack results
+- [`docs/results-stage-3.md`](docs/results-stage-3.md): stage 3 attack matrix and RAG eval
 - [`docs/ai-assist-log.md`](docs/ai-assist-log.md): where AI-generated code was wrong and what caught it

@@ -14,6 +14,26 @@ This is part of the project: the point is to show how the tools were directed an
 
 ## Entries
 
+- 2026-10-08 · stage 3 · **Transaction entered twice.** The first `PooledPgIndex._scoped` entered a
+  psycopg transaction by hand and returned it, and callers then used it in a `with`, entering it again.
+  Caught on review before the first run. Fix: a `@contextmanager` around `conn.transaction()`, on an
+  autocommit connection so those blocks are the only transactions.
+- 2026-10-08 · stage 3 · **Test assumed a total order.** `test_pooled_and_silo_rank_the_same` compared
+  ranked chunk IDs exactly. Two chunks tied at score 0.0; SQLite broke the tie by ID, while Postgres's
+  float4 distances ordered them the other way. Caught by the first run. Fix: compare rounded scores with
+  tie order normalised. The strategies do agree; the test was too strict.
+- 2026-10-08 · stage 3 · **One layer masked another.** Mutation: delete the tenant filter from the pooled
+  search. Nothing failed, because the output guard dropped the foreign chunks. Good defence in depth,
+  but it meant the app filter had no test of its own. Fix: `test_pooled_app_filter_isolates_on_its_own`
+  (owner connection, no guard). Removing filter and guard together now trips 5 attacks.
+- 2026-10-08 · stage 3 · **Mutation harness mistakes, twice.** (1) The scratch copy had no `.pgdata`, so
+  every pooled test failed for every mutation; spotted because every mutation produced the identical
+  failure list. (2) A mutation with a literal `\n` produced a syntax error, and the harness skipped its
+  reset on that path, so later mutations ran on a broken file. Fix: point the copy at the real cluster
+  via DSN env vars, run an unmutated baseline first, and always reset.
+- 2026-10-08 · stage 3 · **Environment.** Homebrew Postgres 17 refused to start on macOS
+  ("postmaster became multithreaded during startup") without `LC_ALL`. `scripts/pg.sh` now sets it.
+
 - 2026-10-08 · stage 2 · **Out-of-date SDK knowledge.** The plan assumed the MCP Python SDK's `FastMCP`
   API. The installed SDK is 2.3.0, where `FastMCP` was renamed `MCPServer`, types moved to `mcp_types`,
   and the new 2026-07-28 protocol has no back-channel for elicitation. Caught by reading the installed

@@ -64,6 +64,27 @@ MCP client ──stdio──► server.py (low-level SDK Server) ──► tools
   expiry because the client echoes it back.
 - **One tenant per process (stdio).** HTTP with per-request tokens waits for the web framework decision.
 
+## Stage 3 multi-tenant RAG
+
+```
+ingest(ctx, doc) ─► chunk ─► Embedder ─► VectorIndex.upsert(ctx, ...)
+answer(ctx, q) ─► cache[(tenant, version, hash(q), k)] ─► Embedder ─► VectorIndex.search(ctx, ...)
+                 ─► output guard (drop chunk.tenant_id != ctx) ─► LLMClient ─► validate citations
+VectorIndex = PooledPgIndex  (shared table: WHERE tenant_id + RLS on app.tenant_id, non-owner role)
+            | SiloIndex      (<root>/<tenant_id>.sqlite, owner recorded in the file)
+```
+
+- **Two strategies, one interface.** Same service, same attacks, so the comparison is like for like.
+- **RLS keyed on a transaction-local setting.** `set_config('app.tenant_id', ..., true)` in every
+  transaction; unset means no rows. The app role is not the owner, not superuser, `NOBYPASSRLS`, and the
+  table uses `FORCE ROW LEVEL SECURITY`.
+- **Every layer tested alone.** The guard masks a missing app filter from the attacks, so the app filter
+  has its own owner-connection test, and the guard its own leaky-index test.
+- **Cache scoped by tenant and index version.** Version bumps on every ingest and delete for that tenant.
+- **Offline embedder.** Feature-hashed unigrams and bigrams (sha256, not `hash()`), behind `Embedder`.
+- **Project-local Postgres.** `scripts/pg.sh` runs Homebrew Postgres from `.pgdata/` on a unix socket,
+  with no background service; CI uses a `pgvector/pgvector:pg17` service container.
+
 ## Decisions
 
 1. **Explicit `TenantContext` on every store call.** The context comes from `verify_token`, never from
@@ -81,4 +102,4 @@ MCP client ──stdio──► server.py (low-level SDK Server) ──► tools
 ## Not yet decided
 - Web framework for the HTTP surface. Stage 2 shipped stdio only; FastAPI is still the likely choice
   when an HTTP surface is needed (stage 3 RAG API or MCP over streamable HTTP).
-- Embedding model for stage 3.
+- Embedding provider. Stage 3 uses an offline hashing embedder behind the `Embedder` interface.

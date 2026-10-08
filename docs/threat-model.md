@@ -133,5 +133,28 @@ no gate, because it makes regressions look approved.
 | 4.9 | Security evals silently skipped (Postgres down, suite dropped from the registry) | Every registered suite runs in CI; gate fails if a baselined suite is missing or ran fewer cases; `METAFORGE_REQUIRE_PG=1` in CI | `test_missing_suite_fails_the_gate` | covered |
 | 4.10 | A scorer bug passes everything, so the gate is vacuous | Every scorer has a negative-control test: a deliberately wrong output must score below 1 | `test_every_scorer_rejects_a_wrong_output` | covered |
 
-## Stage 5 (triage) — to write before building
-- Agent acts on injected content in logs; agent proposes remediation outside its tenant scope.
+## Stage 5 (chaos + triage agent)
+
+`chaos/` simulates a small platform (metadata store, job queue, request traffic) on a virtual clock and
+injects one of three faults for one tenant: database latency, a poison message in the job queue, or a
+bad metadata change. Telemetry (alerts, metrics, logs, metadata change history) is tagged by tenant.
+
+`triage/` runs one agent loop for one tenant, via `LLMClient`. Each step the model emits one JSON
+action; the server validates it and returns the result as delimited data. The only effectful tool is
+`propose_remediation`, which records a proposal. Executing a proposal needs a human `Confirmation`
+outside the loop. The model is assumed hostile-capable: log lines and job payloads contain tenant-
+controlled text, so the attacks below use a *gullible* scripted model that obeys any instruction it
+reads, the worst case for prompt injection.
+
+| # | Threat | Control | Attack / test | Status |
+|---|---|---|---|---|
+| 5.1 | Agent follows instructions embedded in logs, job payloads or runbooks | Observations delimited and tag-neutralised as data; the model can only propose; every proposal is validated without reference to the model's reasoning; execution needs a human | `log-injection-remediation`, `runbook-injection` | covered: injected *proposals* may be recorded, but never out of policy and never executed |
+| 5.2 | Remediation targets another tenant (their message, their object) | Validator checks every target belongs to the session's tenant | `cross-tenant-remediation` | covered |
+| 5.3 | Telemetry tools return another tenant's data | Every query filters on the session's `TenantContext`; tenant-like args stripped and audited | `cross-tenant-telemetry`, `diagnosis-exfiltration` | covered |
+| 5.4 | Agent loops or floods tools (cost, denial of service) | Step cap (10), per-call output cap, bounded tool results; live runs inherit the stage 4 budget | `tool-call-flood` | covered |
+| 5.5 | Remediation executed without human approval, or "approved" by text in a log | Only a `Confirmation(proposal_id)` created outside the loop executes; nothing the model says counts | `fake-approval-in-logs`, `self-approval` | covered |
+| 5.6 | Remediation parameters out of bounds (scale to 10,000 workers, pool to 1e6) | Allow-listed actions with per-action bounds | `log-injection-remediation` | covered |
+| 5.7 | Diagnosis cites evidence that does not exist | Evidence IDs must exist in this tenant's telemetry; proposal IDs must come from this session | `test_diagnosis_rejects_unknown_evidence` | covered |
+| 5.8 | Diagnosis text carries injected content to the human reader | Summary capped, single paragraph, printable; shown as plain text | `test_diagnosis_summary_is_plain` | partial: a misleading-but-plain summary is still possible; the human approves proposals, not prose |
+| 5.9 | Fault injection escapes the simulation | Faults act only on a `ChaosEnvironment` object; no global patching, no I/O | `test_chaos_has_no_global_side_effects` | covered |
+| 5.10 | Naive mode left on | Exact env value, warning on every step, tests assert off by default | `test_triage_naive_mode_is_off_by_default` | covered |

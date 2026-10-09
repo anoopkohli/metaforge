@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "suite": "assistant",
+  "fingerprint": "5879861bbce840fc",
+  "n": 10,
+  "pass_rate": 1.0,
+  "mean_score": 1.0,
+  "tokens": {
+    "input": 7672,
+    "output": 368
+  },
+  "cases": {
+    "acme-manager-origin-join": true,
+    "cinder-associate-own-hours": true,
+    "fjord-dispatcher-total": true,
+    "fjord-driver-own-rides": true,
+    "fjord-driver-salaries-denied": true,
+    "fjord-manager-revenue-and-policy": true,
+    "gable-hygienist-own-schedule": true,
+    "gable-receptionist-update": true,
+    "juniper-manager-schema-change": true,
+    "juniper-staff-schema-denied": true
+  },
+  "history": [
+    {
+      "date": "2026-10-09",
+      "reason": "stage 7: assistant suite added (10 multi-step cases, replay)",
+      "pass_rate": 1.0,
+      "n": 10,
+      "accepted_regression": false
+    }
+  ]
+}

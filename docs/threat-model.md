@@ -201,3 +201,31 @@ and runs it over that tenant's records only.
 | 6.9 | Expensive queries | `limit` <= 100, at most 5 conditions, small in-memory scans per tenant | `test_limits` | covered |
 | 6.10 | References leak foreign records | Reference display values resolve within the caller's tenant only | `test_references_resolve_within_tenant` | covered |
 | 6.11 | Naive mode left on | Exact env value, warning, tests assert off by default | `test_dataqa_naive_mode_is_off_by_default` | covered |
+
+## Stage 7 (assistant, row-level access, audit log)
+
+Users sign in as a person from their company's directory (a synthetic worker). The server derives
+their roles from the directory at sign-in: `manager` for department heads and managers, and *row
+scopes* such as `own:ride.driver` (a driver sees only rides where `driver` is themselves). Roles and the
+worker ID are signed into the session token; the browser never sends them again.
+
+The assistant is one agent loop (at most 8 steps, JSON actions through `LLMClient`) with tools to
+search documents, list and query data, describe objects, and *propose* record updates or schema
+changes. Proposals execute only when the user approves them in the UI. Every sign-in, question, tool
+call, denial, proposal and approval goes to a per-tenant, hash-chained audit log readable by managers.
+
+| # | Threat | Control | Attack / test | Status |
+|---|---|---|---|---|
+| 7.1 | Staff reads rows outside their scope (another driver's rides) | Row scopes from the signed token filter records before any other step of a query | `row-scope-select` | covered |
+| 7.2 | Out-of-scope rows inferred through counts, sums or averages | Aggregates run over in-scope rows only | `row-scope-aggregate` | covered |
+| 7.3 | Assistant passes a tenant, user or role in tool arguments | Tool arguments are strict models with none of these fields; identity comes only from the session | `assistant-identity-args` | covered |
+| 7.4 | Assistant changes data without approval, or text claims approval | Only `propose_*` tools exist; execution needs the user's approval request, which the agent cannot make | `assistant-self-approval`, `fake-approval-in-document` | covered |
+| 7.5 | Proposed update targets a row outside scope, a restricted field, an unknown field or another tenant's record | Updates validated against the effective schema, field restrictions and row scope, at proposal and again at approval | `update-out-of-scope-row`, `update-restricted-field` | covered |
+| 7.6 | Instructions planted in documents or records steer the assistant | Observations are delimited data; every tool enforces scope itself; writes need approval | `injected-document-update`, `injected-record-exfiltration` | covered for access and writes; accepted: planted text can still mislead an answer's wording |
+| 7.7 | Audit log edited, deleted or reordered after the fact | Per-tenant hash chain over each entry and the previous hash; `verify` recomputes it and reports the first broken entry | `test_tampering_is_detected` | covered (detects, does not prevent: anyone with database access can still edit; external anchoring is future work) |
+| 7.8 | Staff read the audit log (other people's questions) or another tenant's log | Audit reads are tenant-scoped and need `manager` | `audit-read-by-staff` | covered |
+| 7.9 | Actions happen without an audit entry | One dispatcher logs every tool call, denial, proposal and approval; tests assert one entry per step | `test_every_step_is_audited` | covered |
+| 7.10 | Audit log stores restricted values | Entries hold actions, object and field names, counts and outcomes, never record values | `test_audit_never_stores_restricted_values` | covered |
+| 7.11 | Agent loops or floods tools | 8-step cap; result rows capped; live runs share the stage 4 budget | `assistant-tool-flood` | covered |
+| 7.12 | Anyone can sign in as anyone | Accepted for the demo: the person picker stands in for an identity provider | n/a | accepted |
+| 7.13 | Naive mode left on | Exact env value, warning on every step, tests assert off by default | `test_assistant_naive_mode_is_off_by_default` | covered |

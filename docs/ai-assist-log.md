@@ -14,6 +14,15 @@ This is part of the project: the point is to show how the tools were directed an
 
 ## Entries
 
+- 2026-10-09 · web UI · **Tenant data left on screen after switching company (reported by the user).**
+  Changing the company or role re-logged in but did not clear what was already rendered, so the
+  previous company's Ask data answer (or a manager's salary table, after dropping to staff) stayed
+  visible. The server never sent cross-tenant data; the leak was in the browser. None of the 33 web
+  tests caught it because they test the API, not what stays on screen. Fix: one list of every
+  tenant-data panel, all cleared before the new login request; replies to requests made under an
+  earlier session are dropped; a test checks that list against the page so a new panel cannot be
+  missed (it fails if any panel is removed from the list). Threat model W.11.
+
 - 2026-10-09 · stage 6 · **Unrealistic generated data, twice.** The first worker generator made the
   first N workers "senior" regardless of title (a paralegal earning $262k, a dispatcher out-earning the
   dispatch lead); the second used one company-wide pay band (a law-firm office manager at $257k). Both

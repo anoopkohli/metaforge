@@ -177,6 +177,7 @@ surface, so it gets the same treatment as the rest.
 | W.8 | Errors leak internals | Generic error responses; details go to the server log only | `test_errors_are_generic` | covered |
 | W.9 | API key reaches the browser | The browser only learns whether live mode is on and the model name | `test_session_never_exposes_secrets` | covered |
 | W.10 | Approvals made by something other than the user | Approve endpoints are separate, state-changing requests (CSRF-protected) that the generator and agent cannot call | `test_agent_proposals_wait_for_ui_approval` | covered |
+| W.11 | Previous company's or role's data stays on screen after switching (found in manual testing) | Every tenant view is cleared on any session change, before the new login request; replies to requests made under an earlier session are dropped | `test_front_end_clears_every_tenant_view_on_session_change` + browser check | covered |
 
 ## Stage 6 (business data + Ask data)
 

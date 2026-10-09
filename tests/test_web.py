@@ -337,3 +337,27 @@ def test_business_documents_are_searchable(client):
     login(client)
     docs = {d["doc_id"] for d in client.get("/api/documents").json()["documents"]}
     assert "fare_policy" in docs and "billing_policy" not in docs  # fjord is the taxi company
+
+
+def test_front_end_clears_every_tenant_view_on_session_change():
+    """Switching company or role must not leave the previous session's data on screen (W.11)."""
+    import re
+
+    static = Path(__file__).parent.parent / "web" / "static"
+    js = (static / "app.js").read_text()
+    html = (static / "index.html").read_text()
+    declared = set(re.findall(r'"([a-z-]+)"', js[js.index("const TENANT_VIEWS") : js.index("];")]))
+    rendered = {
+        i
+        for i in re.findall(r'id="([a-z-]+)"', html)
+        if re.search(
+            r"(result|list|detail|examples|suggestions|status|charts|builder|biz-name|biz-desc|gen-example)$",
+            i,
+        )
+    }
+    assert rendered and rendered <= declared, (
+        f"not cleared on session change: {rendered - declared}"
+    )
+    login_body = js[js.index("async function login()") :][:200]
+    assert "resetTenantViews()" in login_body.split("await")[0]  # cleared before any request
+    assert "if (epoch !== state.epoch) throw new StaleResponse()" in js

@@ -4,12 +4,29 @@
 "use strict";
 
 const CSRF = { "X-Metaforge-CSRF": "1", "Content-Type": "application/json" };
-const state = { session: null, tab: "overview" };
+const state = { session: null, tab: "overview", epoch: 0 };
+
+// Every element that shows tenant data. All of them are emptied whenever the company or role
+// changes, so nothing from the previous session stays on screen. tests/test_web.py checks this list
+// against index.html, so a new panel cannot be left out.
+const TENANT_VIEWS = [
+  "object-list", "object-detail", "gen-example", "gen-result", "doc-list", "ask-suggestions",
+  "ask-result", "biz-name", "biz-desc", "schema-list", "data-examples", "data-result", "builder",
+  "alert-list", "charts", "log-list", "triage-result", "lab-result", "lab-status", "evals-result",
+  "evals-status",
+];
+const TENANT_INPUTS = ["gen-text", "ask-text", "data-question"];
+
+// A reply to a request made under an earlier session is dropped, never rendered.
+class StaleResponse extends Error {
+  constructor() { super(""); this.stale = true; }
+}
 const AUTH_TABS = new Set(["data", "docs", "ask-data", "incident", "lab", "evals"]);
 
 // ---- helpers ----------------------------------------------------------------------------------
 
 async function api(path, body, method) {
+  const epoch = state.epoch;
   const opts = { credentials: "same-origin", method: method || (body === undefined ? "GET" : "POST") };
   if (opts.method !== "GET") {
     opts.headers = CSRF;
@@ -18,6 +35,7 @@ async function api(path, body, method) {
   const res = await fetch(path, opts);
   let data;
   try { data = await res.json(); } catch { data = { error: "unexpected response" }; }
+  if (epoch !== state.epoch) throw new StaleResponse();
   if (!res.ok) throw new Error(data.error || `request failed (${res.status})`);
   return data;
 }
@@ -43,6 +61,7 @@ const show = (node, on) => node.classList.toggle("hidden", !on);
 const fmt = (n) => (Math.abs(n) >= 100 ? Math.round(n).toLocaleString() : String(Math.round(n * 1000) / 1000));
 
 function errorBox(message) {
+  if (!message) return document.createTextNode("");  // stale reply: show nothing
   return el("div", { class: "result-card" }, el("span", { class: "result-bad", text: "Error: " }), message);
 }
 
@@ -75,7 +94,16 @@ async function loadSession() {
     : "Log in";
 }
 
+function resetTenantViews() {
+  state.epoch += 1;
+  for (const id of TENANT_VIEWS) $(id).replaceChildren();
+  for (const id of TENANT_INPUTS) $(id).value = "";
+  show($("incident-view"), false);
+  schema = null;
+}
+
 async function login() {
+  resetTenantViews();
   await api("/api/login", { tenant_id: $("tenant-select").value, role: $("role-select").value });
   await loadSession();
   await refreshTab();

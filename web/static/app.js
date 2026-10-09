@@ -5,7 +5,7 @@
 
 const CSRF = { "X-Metaforge-CSRF": "1", "Content-Type": "application/json" };
 const state = { session: null, tab: "overview" };
-const AUTH_TABS = new Set(["data", "docs", "incident", "lab", "evals"]);
+const AUTH_TABS = new Set(["data", "docs", "ask-data", "incident", "lab", "evals"]);
 
 // ---- helpers ----------------------------------------------------------------------------------
 
@@ -58,8 +58,11 @@ async function withBusy(button, fn) {
 async function loadSession() {
   state.session = await api("/api/session");
   const select = $("tenant-select");
-  select.replaceChildren(...state.session.tenants.map((t) => el("option", { value: t, text: t })));
+  const biz = state.session.businesses || {};
+  select.replaceChildren(...state.session.tenants.map((t) =>
+    el("option", { value: t, text: biz[t] ? `${t} · ${biz[t].name}` : t })));
   if (state.session.tenant) select.value = state.session.tenant;
+  if (state.session.role) $("role-select").value = state.session.role;
   const live = state.session.live;
   const badge = $("mode-badge");
   badge.textContent = live ? `live · ${state.session.model}` : "offline · stand-in AI";
@@ -67,11 +70,13 @@ async function loadSession() {
   $("footer-mode").textContent = live
     ? `AI calls go to ${state.session.model} (budget-capped)`
     : "no API key: AI steps use recorded or scripted stand-ins";
-  $("login-btn").textContent = state.session.tenant ? `Logged in as ${state.session.tenant}` : "Log in";
+  $("login-btn").textContent = state.session.tenant
+    ? `Logged in: ${state.session.tenant} (${state.session.role})`
+    : "Log in";
 }
 
 async function login() {
-  await api("/api/login", { tenant_id: $("tenant-select").value });
+  await api("/api/login", { tenant_id: $("tenant-select").value, role: $("role-select").value });
   await loadSession();
   await refreshTab();
 }
@@ -93,6 +98,7 @@ async function refreshTab() {
   try {
     if (state.tab === "data") await loadDataTab();
     if (state.tab === "docs") await loadDocsTab();
+    if (state.tab === "ask-data") await loadAskData();
     if (state.tab === "incident") await loadIncident();
     if (state.tab === "lab") await loadLabCatalogue();
   } catch (e) {
@@ -129,17 +135,36 @@ async function describeObject(name, li) {
     el("h3", { text: `${obj.name} (${obj.kind})` }),
     el("div", { class: "table-wrap" },
       el("table", {},
-        el("thead", {}, el("tr", {}, ["Field", "Type", "Required", "Label"].map((h) => el("th", { text: h })))),
+        el("thead", {}, el("tr", {}, ["Field", "Type", "Required", "Access"].map((h) => el("th", { text: h })))),
         el("tbody", {}, obj.fields.map((f) =>
           el("tr", {},
             el("td", { class: "mono", text: f.name }),
             el("td", { text: f.reference_to ? `${f.type} → ${f.reference_to}` : f.type }),
             el("td", { text: f.required ? "yes" : "" }),
-            el("td", { text: f.label || "" })))))),
+            el("td", {}, f.restricted ? el("span", { class: "lock", text: "🔒 managers only" }) : "everyone")))))),
     obj.kind === "platform"
       ? el("p", { class: "muted small", text: "Fields your company has hidden are not shown, and never sent to the AI." })
-      : null
+      : null,
+    el("div", { id: "record-preview" })
   );
+  try {
+    const rec = await api(`/api/objects/${encodeURIComponent(name)}/records`);
+    $("record-preview").replaceChildren(
+      el("h3", { text: `Records (${rec.matched})`, style: "margin-top:1rem" }),
+      rec.rows.length ? resultTable(rec) : el("p", { class: "muted", text: "No records." }),
+      state.session.role !== "manager" && obj.fields.some((f) => f.restricted)
+        ? el("p", { class: "muted small", text: "🔒 columns are left out because you are logged in as staff." })
+        : null);
+  } catch (e) { $("record-preview").replaceChildren(errorBox(e.message)); }
+}
+
+function resultTable(result) {
+  const cell = (v) => (v === null || v === undefined ? "" : typeof v === "number" ? fmt(v) : String(v));
+  return el("div", { class: "table-wrap" },
+    el("table", {},
+      el("thead", {}, el("tr", {}, result.columns.map((c) => el("th", { text: c })))),
+      el("tbody", {}, result.rows.map((r) => el("tr", {}, result.columns.map((c) => el("td", { text: cell(r[c]) })))))),
+    result.truncated ? el("p", { class: "muted small", text: `Showing ${result.rows.length} of ${result.matched}.` }) : null);
 }
 
 function renderAttempts(attempts) {
@@ -244,6 +269,137 @@ async function ask() {
               el("span", { class: "scorebar", title: `relevance ${h.score}` }, el("span", { style: `width:${Math.max(4, (h.score / maxScore) * 100)}%` })))),
           el("div", { class: "small", text: h.text }))));
   } catch (e) { out.replaceChildren(errorBox(e.message)); }
+}
+
+// ---- Ask data (stage 6) -----------------------------------------------------------------------
+
+let schema = null;
+
+async function loadAskData() {
+  schema = await api("/api/data/schema");
+  $("biz-name").textContent = schema.business ? schema.business.name : "Your data";
+  $("biz-desc").textContent = (schema.business ? schema.business.description + " " : "") +
+    `You are logged in as ${schema.role}.`;
+  $("schema-list").replaceChildren(...schema.objects.map((o) =>
+    el("details", { class: "schema-obj" },
+      el("summary", {}, el("span", { class: "mono", text: o.name }), el("span", { class: "muted small", text: `  ${o.records} records` })),
+      el("ul", { class: "schema-fields" }, o.fields.map((f) =>
+        el("li", {},
+          el("span", { class: "mono", text: f.name }),
+          el("span", { class: f.readable ? "muted" : "lock", text: (f.reference_to ? `→ ${f.reference_to}` : f.type) + (f.restricted ? (f.readable ? " · 🔓 restricted" : " · 🔒 managers only") : "") })))))));
+  const { examples } = await api("/api/data/examples");
+  $("data-examples").replaceChildren(...examples.map((q) =>
+    el("button", { class: "chip", onclick: () => { $("data-question").value = q; askData(); } }, q)));
+  $("data-question").placeholder = state.session.live ? "Ask anything about your records" : "Offline: pick an example below, or build a query";
+  buildBuilder();
+}
+
+function statusBadge(status) {
+  const cls = { answered: "good", denied: "bad", refused: "warn", invalid: "bad", offline: "warn" }[status] || "";
+  const label = { answered: "answered", denied: "denied: restricted data", refused: "the AI declined", invalid: "could not answer", offline: "offline" }[status] || status;
+  return el("span", { class: `badge ${cls}`, text: label });
+}
+
+function renderDataResult(res) {
+  const parts = [el("div", { class: "result-card" },
+    el("div", { class: "row wrap" }, statusBadge(res.status),
+      res.mode ? el("span", { class: "badge " + (res.mode === "live" ? "accent" : "warn"), text: res.mode === "live" ? "Claude" : "offline: recorded plan" }) : null),
+    el("div", { class: "answer", text: res.answer || "" }),
+    res.description ? el("p", { class: "muted small", text: `Query: ${res.description}` }) : null)];
+  if (res.attempts && res.attempts.length) {
+    parts.push(el("h3", { text: "How the AI's query was checked", style: "margin-top:1rem" }), ...renderAttempts(res.attempts));
+  }
+  if (res.result) parts.push(el("h3", { text: "Result", style: "margin-top:1rem" }), resultTable(res.result));
+  $("data-result").replaceChildren(...parts);
+}
+
+async function askData() {
+  const question = $("data-question").value.trim();
+  if (!question) return;
+  $("data-result").replaceChildren(el("p", { class: "muted", text: "Planning a query…" }));
+  try { renderDataResult(await api("/api/data/ask", { question })); }
+  catch (e) { $("data-result").replaceChildren(errorBox(e.message)); }
+}
+
+// The builder: the user writes the query, so no AI is involved. The server checks it the same way.
+function buildBuilder() {
+  const box = $("builder");
+  const objSel = el("select", {}, schema.objects.map((o) => el("option", { value: o.name, text: o.name })));
+  const fieldsBox = el("div", { class: "field-checks" });
+  const conds = el("div", {});
+  const groupSel = el("select", {});
+  const aggFn = el("select", {}, ["", "count", "sum", "avg", "min", "max"].map((f) => el("option", { value: f, text: f || "none" })));
+  const aggField = el("select", {});
+  const orderSel = el("select", {});
+  const desc = el("input", { type: "checkbox" });
+  const limit = el("input", { type: "text", value: "20", style: "width:5rem" });
+
+  const fieldsOf = () => schema.objects.find((o) => o.name === objSel.value).fields;
+  const options = (sel, withNone) => sel.replaceChildren(
+    ...(withNone ? [el("option", { value: "", text: "none" })] : []),
+    ...fieldsOf().map((f) => el("option", { value: f.name, text: f.readable ? f.name : `🔒 ${f.name}` })));
+
+  function addCond() {
+    const f = el("select", {}); options(f, false);
+    const op = el("select", {}, ["=", "!=", ">", ">=", "<", "<=", "contains"].map((o) => el("option", { value: o, text: o })));
+    const v = el("input", { type: "text", placeholder: "value" });
+    const rm = el("button", { class: "btn btn-small", onclick: () => row.remove() }, "✕");
+    const row = el("div", { class: "cond-row" }, f, op, v, rm);
+    row.read = () => {
+      const field = fieldsOf().find((x) => x.name === f.value);
+      let value = v.value;
+      if (field && (field.type === "integer" || field.type === "decimal") && value !== "" && !isNaN(Number(value))) value = Number(value);
+      if (field && field.type === "boolean") value = value === "true";
+      return { field: f.value, op: op.value, value };
+    };
+    conds.append(row);
+  }
+
+  function refresh() {
+    fieldsBox.replaceChildren(...fieldsOf().map((f) =>
+      el("label", { class: f.readable ? "" : "locked", title: f.readable ? "" : "restricted to managers" },
+        el("input", { type: "checkbox", value: f.name }), f.readable ? f.name : `🔒 ${f.name}`)));
+    conds.replaceChildren();
+    options(groupSel, true); options(aggField, true); options(orderSel, true);
+    orderSel.prepend(el("option", { value: "value", text: "value (aggregate)" }));
+    orderSel.value = "";
+  }
+  objSel.addEventListener("change", refresh);
+
+  async function run(ev) {
+    const query = { object: objSel.value };
+    const select = [...fieldsBox.querySelectorAll("input:checked")].map((c) => c.value);
+    if (select.length) query.select = select;
+    const where = [...conds.children].map((r) => r.read());
+    if (where.length) query.where = where;
+    if (groupSel.value) query.group_by = groupSel.value;
+    if (aggFn.value) query.aggregate = aggFn.value === "count" && !aggField.value ? { fn: "count" } : { fn: aggFn.value, field: aggField.value };
+    if (orderSel.value) query.order_by = { field: orderSel.value, desc: desc.checked };
+    const n = parseInt(limit.value, 10);
+    if (!isNaN(n)) query.limit = n;
+    try {
+      const res = await withBusy(ev.currentTarget, () => api("/api/data/query", { query }));
+      $("data-result").replaceChildren(el("div", { class: "result-card" },
+        el("div", { class: "row wrap" }, statusBadge("answered"), el("span", { class: "badge", text: "your query (no AI)" })),
+        el("p", { class: "muted small", text: `Query: ${res.description}` }),
+        el("details", {}, el("summary", { text: "query as sent" }), el("pre", { text: JSON.stringify(res.query, null, 2) }))),
+        el("h3", { text: "Result", style: "margin-top:1rem" }), resultTable(res.result));
+    } catch (e) {
+      $("data-result").replaceChildren(errorBox(e.message), el("pre", { text: JSON.stringify(query, null, 2) }));
+    }
+  }
+
+  box.replaceChildren(el("div", { class: "builder-grid" },
+    el("label", { text: "Object" }), objSel,
+    el("label", { text: "Show fields" }), fieldsBox,
+    el("label", { text: "Filters" }), el("div", {}, conds, el("button", { class: "btn btn-small", onclick: addCond }, "+ filter")),
+    el("label", { text: "Group by" }), groupSel,
+    el("label", { text: "Aggregate" }), el("div", { class: "cond-row" }, aggFn, aggField),
+    el("label", { text: "Sort by" }), el("div", { class: "cond-row" }, orderSel, el("label", { class: "check" }, desc, "highest first")),
+    el("label", { text: "Limit" }), limit),
+    el("div", { class: "row" }, el("button", { class: "btn btn-primary", onclick: run }, "Run query"),
+      el("span", { class: "muted small", text: "🔒 fields are refused for staff in every part of a query." })));
+  refresh();
 }
 
 // ---- incident (stage 5) -----------------------------------------------------------------------
@@ -439,6 +595,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("gen-btn").addEventListener("click", (ev) => withBusy(ev.currentTarget, draftChange));
   $("ask-btn").addEventListener("click", ask);
   $("ask-text").addEventListener("keydown", (ev) => { if (ev.key === "Enter") ask(); });
+  $("data-ask-btn").addEventListener("click", askData);
+  $("data-question").addEventListener("keydown", (ev) => { if (ev.key === "Enter") askData(); });
+  $("role-select").addEventListener("change", () => { if (state.session && state.session.tenant) login(); });
   $("incident-start").addEventListener("click", (ev) => startIncident(ev.currentTarget));
   $("triage-btn").addEventListener("click", (ev) => runTriage(ev.currentTarget));
   $("evals-btn").addEventListener("click", (ev) => runEvals(ev.currentTarget));

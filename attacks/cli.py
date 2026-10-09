@@ -16,6 +16,7 @@ NAIVE = {
     "METAFORGE_UNSAFE_NAIVE_MCP": "trust-model-tenant-arg",
     "METAFORGE_UNSAFE_NAIVE_RAG": "disable-tenant-filters",
     "METAFORGE_UNSAFE_NAIVE_TRIAGE": "trust-the-agent",
+    "METAFORGE_UNSAFE_NAIVE_DATAQA": "skip-access-checks",
 }
 
 
@@ -65,6 +66,22 @@ def run(suite: str) -> dict:
             with _naive(True):
                 naive = run_triage_attack(aid, naive=True)
             results.append({"id": aid, "secure": secure, "naive": naive, "naive_expected": True})
+    elif suite == "dataqa":
+        from attacks.dataqa import ATTACKS, NAIVE_EXPECTED_TO_SUCCEED, run_dataqa_attack
+
+        for aid in ATTACKS:
+            with _naive(False):
+                secure = run_dataqa_attack(aid)
+            with _naive(True):
+                naive = run_dataqa_attack(aid, naive=True)
+            results.append(
+                {
+                    "id": aid,
+                    "secure": secure,
+                    "naive": naive,
+                    "naive_expected": aid in NAIVE_EXPECTED_TO_SUCCEED,
+                }
+            )
     elif suite == "rag":
         from attacks.rag import ATTACKS, applies, expected_success, run_rag_attack
         from rag.pg_index import discover_dsns
@@ -94,7 +111,7 @@ def run(suite: str) -> dict:
             )
             results.append(row)
     else:
-        raise SystemExit(f"unknown suite {suite!r}; expected mcp, rag or triage")
+        raise SystemExit(f"unknown suite {suite!r}; expected mcp, rag, triage or dataqa")
     return {"suite": suite, "pooled": pooled, "results": results}
 
 
@@ -102,7 +119,7 @@ def main(argv: list[str] | None = None) -> int:
     logging.disable(logging.CRITICAL)  # keep stdout pure JSON
     args = argv if argv is not None else sys.argv[1:]
     if len(args) != 1:
-        print("usage: python -m attacks.cli mcp|rag|triage", file=sys.stderr)
+        print("usage: python -m attacks.cli mcp|rag|triage|dataqa", file=sys.stderr)
         return 2
     print(json.dumps(run(args[0])))
     return 0

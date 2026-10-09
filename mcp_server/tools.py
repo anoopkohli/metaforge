@@ -151,6 +151,7 @@ def _field_dict(f) -> dict[str, Any]:
         "required": f.required,
         "label": f.label,
         "reference_to": f.reference_to,
+        "restricted": f.restricted,
     }
 
 

@@ -14,6 +14,19 @@ This is part of the project: the point is to show how the tools were directed an
 
 ## Entries
 
+- 2026-10-09 · stage 6 · **Unrealistic generated data, twice.** The first worker generator made the
+  first N workers "senior" regardless of title (a paralegal earning $262k, a dispatcher out-earning the
+  dispatch lead); the second used one company-wide pay band (a law-firm office manager at $257k). Both
+  were caught by printing average salary by title before writing any tests. Fix: an explicit pay range
+  per job title, plus hiring weights (a taxi company is mostly drivers).
+- 2026-10-09 · stage 6 · **Collisions with earlier examples.** Making fjord a taxi company gave it a
+  `vehicle` object, which broke two web tests that created `vehicle` as fjord. Caught by the red run
+  of the updated test file. Fix: the tests now use objects the business does not have. The stage 1
+  generator example "Track company vehicles" now collides in the UI, which shows the collision check.
+- 2026-10-09 · stage 6 · **Layered check, again.** Making restricted fields count only in `select`
+  (a plausible first implementation) was caught by 4 clause tests and 2 attacks; the inference attacks
+  (filter, aggregate, sort) exist precisely because that is the common mistake in text-to-SQL systems.
+
 - 2026-10-08 · web UI · **Rendered `[object HTMLDivElement]`.** The answer view passed an array of
   elements to `replaceChildren`, which does not flatten arrays (the `el()` helper does). Caught by
   clicking through the UI in a browser, not by the API tests. Fix: spread the array.

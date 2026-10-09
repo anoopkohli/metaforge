@@ -6,8 +6,8 @@ with tests and a threat model written first so the AI-generated code is checked 
 
 ## In short
 
-I built a multi-tenant app with five AI features (generation, tool use, document Q&A, an
-incident-triage agent, and an eval system) and treated the AI as untrusted throughout. For each feature
+I built a multi-tenant app with six AI features (generation, tool use, document Q&A, questions
+over business records, an incident-triage agent, and an eval system) and treated the AI as untrusted throughout. For each feature
 I wrote the threats down first, then attacks that try to leak one tenant's data to another or make the
 AI take actions it shouldn't, including with a model that obeys every injected instruction. The code
 blocks all of them, the same attacks succeed against a deliberately unsafe version, and a CI gate
@@ -33,6 +33,7 @@ Each stage is a git tag and is useful on its own.
 | 3 | `rag/` + `attacks/`: multi-tenant RAG, pooled (Postgres + RLS) vs siloed isolation, 12 attacks × 6 configurations | done (`stage-3`) |
 | 4 | `evals/`: per-case regression gate, dataset fingerprints, reasoned baseline updates, token/cost tracking, injection-hardened LLM judge | done (`stage-4`) |
 | 5 | `chaos/` + `triage/`: three simulated faults, one tenant-scoped triage agent loop, injection attacks with a fully obedient model | done (`stage-5`) |
+| 6 | `core/business.py` + `dataqa/`: five synthetic businesses, staff/manager roles, restricted fields, Ask data (validated JSON queries, never SQL) | done (`stage-6`) |
 
 ## Try it in a browser
 
@@ -162,6 +163,15 @@ Logs carry tenant-controlled text, so the attacks use a scripted model that obey
 reads. Even then, no out-of-policy, cross-tenant or unapproved action gets through; in naive mode all
 eight attacks succeed. Details: [`docs/results-stage-5.md`](docs/results-stage-5.md).
 
+## Stage 6: business data and Ask data
+
+The five tenants are now a taxi company, a law firm, a dental office, a builder and a coffee roaster,
+with synthetic staff (department, title, badge number, salary) and a few hundred business records each.
+Logins carry a role; salaries, patients' dates of birth, billing rates and similar fields are restricted
+to managers. Ask data turns a question into a small JSON query the server validates against the
+company's schema and the caller's role, in every clause: staff cannot select, filter, average or sort
+by a salary. Details: [`docs/results-stage-6.md`](docs/results-stage-6.md).
+
 ## Docs
 
 - [`CLAUDE.md`](CLAUDE.md): standing rules for the AI coding tools working in this repo
@@ -172,4 +182,5 @@ eight attacks succeed. Details: [`docs/results-stage-5.md`](docs/results-stage-5
 - [`docs/results-stage-3.md`](docs/results-stage-3.md): stage 3 attack matrix and RAG eval
 - [`docs/results-stage-4.md`](docs/results-stage-4.md): stage 4 eval gate
 - [`docs/results-stage-5.md`](docs/results-stage-5.md): stage 5 triage attacks and eval
+- [`docs/results-stage-6.md`](docs/results-stage-6.md): stage 6 Ask data attacks and eval
 - [`docs/ai-assist-log.md`](docs/ai-assist-log.md): where AI-generated code was wrong and what caught it

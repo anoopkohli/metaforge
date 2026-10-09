@@ -12,9 +12,10 @@ from evals.pricing import MeteredLLM
 from web.app import CSRF_HEADER, SESSION_COOKIE, create_app
 
 H = {CSRF_HEADER: "1"}
-VEHICLE = {
+# fjord is a taxi company with its own `vehicle` object, so the new object needs another name.
+PERMIT = {
     "action": "create_object",
-    "object": {"name": "vehicle", "fields": [{"name": "plate", "type": "string"}]},
+    "object": {"name": "parking_permit", "fields": [{"name": "zone", "type": "string"}]},
 }
 
 
@@ -24,8 +25,8 @@ def client():
         yield c
 
 
-def login(c, tenant="fjord"):
-    r = c.post("/api/login", json={"tenant_id": tenant}, headers=H)
+def login(c, tenant="fjord", role="staff"):
+    r = c.post("/api/login", json={"tenant_id": tenant, "role": role}, headers=H)
     assert r.status_code == 200, r.text
     return r
 
@@ -141,7 +142,8 @@ def test_generate_offline_uses_recorded_examples(client):
     login(client)
     examples = client.get("/api/generate/examples").json()["examples"]
     assert len(examples) >= 5
-    r = client.post("/api/generate", json={"description": examples[0]["description"]}, headers=H)
+    shirt = next(e["description"] for e in examples if "shirt size" in e["description"])
+    r = client.post("/api/generate", json={"description": shirt}, headers=H)
     body = r.json()
     assert r.status_code == 200 and body["mode"] == "offline" and body["ok"]
     assert body["attempts"] and body["proposal"]["action"] in ("create_object", "override_object")
@@ -151,15 +153,15 @@ def test_generate_offline_uses_recorded_examples(client):
 
 def test_change_needs_approval_and_stays_in_tenant(client):
     login(client)
-    change = client.post("/api/changes", json={"proposal": VEHICLE}, headers=H).json()
-    assert change["accepted"] and "vehicle" in change["summary"]
+    change = client.post("/api/changes", json={"proposal": PERMIT}, headers=H).json()
+    assert change["accepted"] and "parking_permit" in change["summary"]
     names = lambda: [o["name"] for o in client.get("/api/objects").json()["objects"]]  # noqa: E731
-    assert "vehicle" not in names()
+    assert "parking_permit" not in names()
     r = client.post(f"/api/changes/{change['change_id']}/approve", headers=H)
     assert r.status_code == 200 and r.json()["applied"]
-    assert "vehicle" in names()
+    assert "parking_permit" in names()
     login(client, "cinder")
-    assert "vehicle" not in names()
+    assert "parking_permit" not in names()
 
 
 def test_ask_answers_from_own_documents(client):
@@ -257,3 +259,81 @@ def test_evals_run_through_the_gate(client):
     rows = client.post("/api/evals/run", headers=H).json()["suites"]
     assert {r["suite"] for r in rows} >= {"smoke", "generator", "rag", "triage"}
     assert all(r["gate"] == "pass" for r in rows)
+
+
+# ---- stage 6: businesses, roles, Ask data -----------------------------------------------------
+
+
+def test_session_shows_business_and_role(client):
+    login(client, "gable", role="manager")
+    session = client.get("/api/session").json()
+    assert session["role"] == "manager"
+    assert session["businesses"]["gable"]["name"] == "Gable Family Dental"
+
+
+def test_role_cannot_be_sent_with_a_question(client):
+    login(client)
+    r = client.post("/api/data/ask", json={"question": "salaries?", "role": "manager"}, headers=H)
+    assert r.status_code == 422
+
+
+def test_schema_marks_restricted_fields_by_role(client):
+    def salary_readable():
+        objects = {o["name"]: o for o in client.get("/api/data/schema").json()["objects"]}
+        return next(f for f in objects["worker"]["fields"] if f["name"] == "salary")["readable"]
+
+    login(client, role="staff")
+    assert salary_readable() is False
+    login(client, role="manager")
+    assert salary_readable() is True
+
+
+def test_ask_data_offline_examples_respect_roles(client):
+    login(client, role="staff")
+    examples = client.get("/api/data/examples").json()["examples"]
+    salary_q = next(q for q in examples if "salar" in q)
+    staff = client.post("/api/data/ask", json={"question": salary_q}, headers=H).json()
+    assert staff["status"] == "denied" and staff["result"] is None
+    login(client, role="manager")
+    mgr = client.post("/api/data/ask", json={"question": salary_q}, headers=H).json()
+    assert mgr["status"] == "answered" and mgr["result"]["rows"]
+
+
+def test_ask_data_free_text_needs_a_model_offline(client):
+    login(client)
+    body = client.post(
+        "/api/data/ask", json={"question": "Who drove the longest ride?"}, headers=H
+    ).json()
+    assert body["status"] == "offline" and "example" in body["answer"].lower()
+
+
+def test_query_builder_runs_and_enforces_roles(client):
+    login(client, role="staff")
+    ok = client.post(
+        "/api/data/query",
+        json={"query": {"object": "ride", "group_by": "pickup_zone", "aggregate": {"fn": "count"}}},
+        headers=H,
+    )
+    assert ok.status_code == 200 and sum(r["value"] for r in ok.json()["result"]["rows"]) == 220
+    denied = client.post(
+        "/api/data/query",
+        json={"query": {"object": "worker", "aggregate": {"fn": "avg", "field": "salary"}}},
+        headers=H,
+    )
+    assert denied.status_code == 400 and "restricted" in denied.json()["error"]
+    foreign = client.post("/api/data/query", json={"query": {"object": "client"}}, headers=H)
+    assert foreign.status_code == 400 and "no object" in foreign.json()["error"]
+
+
+def test_browse_records_hides_restricted_columns_from_staff(client):
+    login(client, role="staff")
+    staff = client.get("/api/objects/worker/records").json()
+    assert "salary" not in staff["columns"] and staff["rows"]
+    login(client, role="manager")
+    assert "salary" in client.get("/api/objects/worker/records").json()["columns"]
+
+
+def test_business_documents_are_searchable(client):
+    login(client)
+    docs = {d["doc_id"] for d in client.get("/api/documents").json()["documents"]}
+    assert "fare_policy" in docs and "billing_policy" not in docs  # fjord is the taxi company

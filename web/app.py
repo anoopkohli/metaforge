@@ -38,11 +38,13 @@ from starlette.staticfiles import StaticFiles
 from attacks.catalogue import SUITES as ATTACK_CATALOGUE
 from chaos import FAULT_TYPES, ChaosEnvironment
 from core.auth import AuthError, issue_token, verify_token
+from core.business import BusinessProfile, seed_business
 from core.llm.base import FakeLLM, LLMClient
 from core.llm.embeddings import HashingEmbedder
 from core.store.sqlite_store import MetadataStore
 from core.synthetic import seed_demo, synthetic_documents
 from core.tenancy.context import TenantContext, tenant_scope
+from dataqa import MANAGER_ROLE, QueryError, ask_data, describe, execute, parse_query, schema_for
 from evals.pricing import BudgetExceeded, MeteredLLM
 from evals.rag_suite import extractive_llm
 from evals.runner import load_jsonl
@@ -61,6 +63,7 @@ SESSION_TTL = 8 * 3600
 ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 STATIC = Path(__file__).parent / "static"
 GENERATOR_DATASET = Path(__file__).parent.parent / "evals" / "datasets" / "generator.jsonl"
+DATAQA_DATASET = Path(__file__).parent.parent / "evals" / "datasets" / "dataqa.jsonl"
 
 CSP = (
     "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
@@ -97,7 +100,14 @@ class _Req(BaseModel):
 
 
 class LoginReq(_Req):
+    # This *is* the (demo) identity provider: choosing a company and role here stands in for
+    # signing in. After this, both come only from the signed cookie.
     tenant_id: str = Field(max_length=64)
+    role: Literal["staff", "manager"] = "staff"
+
+
+class DataQueryReq(_Req):
+    query: dict[str, Any]
 
 
 class GenerateReq(_Req):
@@ -122,7 +132,7 @@ class TriageReq(_Req):
 
 
 class LabReq(_Req):
-    suite: Literal["mcp", "rag", "triage"]
+    suite: Literal["mcp", "rag", "triage", "dataqa"]
 
 
 # ---- state ------------------------------------------------------------------------------------
@@ -148,6 +158,8 @@ class AppState:
     live_llm: LLMClient | None
     model: str | None
     examples: dict[str, list[str]]
+    businesses: dict[str, BusinessProfile]
+    data_examples: dict[str, dict[str, dict]]  # tenant -> question -> recorded query plan
     incidents: dict[str, Incident] = field(default_factory=dict)
     lab_lock: threading.Lock = field(default_factory=threading.Lock)
     evals_lock: threading.Lock = field(default_factory=threading.Lock)
@@ -166,6 +178,16 @@ def _load_examples() -> dict[str, list[str]]:
     return examples
 
 
+def _load_data_examples() -> dict[str, dict[str, dict]]:
+    """Tenant -> question -> recorded query plan, from the stage 6 golden set."""
+    out: dict[str, dict[str, dict]] = {}
+    for case in load_jsonl(DATAQA_DATASET):
+        out.setdefault(case.input["tenant"], {}).setdefault(
+            case.input["question"], case.expected["gold"]
+        )
+    return out
+
+
 def _live_llm_from_env() -> tuple[LLMClient | None, str | None]:
     if not os.environ.get("ANTHROPIC_API_KEY"):
         return None, None
@@ -179,6 +201,7 @@ def _live_llm_from_env() -> tuple[LLMClient | None, str | None]:
 def build_state(secret: str | None, live_llm: LLMClient | None) -> AppState:
     store = MetadataStore(":memory:")
     tenants = seed_demo(store, n_tenants=5, seed=7)
+    businesses = seed_business(store, tenants)
     model = None
     if live_llm is None:
         live_llm, model = _live_llm_from_env()
@@ -188,7 +211,8 @@ def build_state(secret: str | None, live_llm: LLMClient | None) -> AppState:
     documents: dict[str, list[dict]] = {}
     for t in tenants:
         documents[t.tenant_id] = []
-        for doc in synthetic_documents(t):
+        docs = [*synthetic_documents(t), *businesses[t.tenant_id].docs]
+        for doc in docs:
             rag.ingest(t.context(), {"doc_id": doc.doc_id, "title": doc.title, "text": doc.text})
             documents[t.tenant_id].append(
                 {"doc_id": doc.doc_id, "title": doc.title, "text": doc.text}
@@ -203,6 +227,8 @@ def build_state(secret: str | None, live_llm: LLMClient | None) -> AppState:
         live_llm=live_llm,
         model=model,
         examples=_load_examples(),
+        businesses=businesses,
+        data_examples=_load_data_examples(),
     )
 
 
@@ -316,14 +342,21 @@ class SecurityMiddleware:
 
 async def get_session(request: Request) -> dict:
     st = _state(request)
-    tenant = None
+    tenant = role = None
     try:
-        tenant = _session(request).tenant_id
+        ctx = _session(request)
+        tenant = ctx.tenant_id
+        role = "manager" if MANAGER_ROLE in ctx.roles else "staff"
     except HTTPError:
         pass
     return {
         "tenant": tenant,
+        "role": role,
         "tenants": st.tenant_ids,
+        "businesses": {
+            tid: {"name": b.name, "kind": b.kind, "description": b.description}
+            for tid, b in st.businesses.items()
+        },
         "live": st.live_llm is not None,
         "model": st.model,
     }
@@ -334,8 +367,11 @@ async def login(request: Request) -> Response:
     req = await _body(request, LoginReq)
     if req.tenant_id not in st.tenant_ids:
         raise HTTPError(400, "unknown tenant")
-    token = issue_token(st.secret, req.tenant_id, subject="demo-user", ttl_seconds=SESSION_TTL)
-    response = JSONResponse({"tenant": req.tenant_id})
+    roles = (MANAGER_ROLE,) if req.role == "manager" else ()
+    token = issue_token(
+        st.secret, req.tenant_id, subject="demo-user", roles=roles, ttl_seconds=SESSION_TTL
+    )
+    response = JSONResponse({"tenant": req.tenant_id, "role": req.role})
     response.set_cookie(
         SESSION_COOKIE, token, max_age=SESSION_TTL, httponly=True, samesite="strict", path="/"
     )
@@ -416,6 +452,67 @@ async def approve_change(request: Request, ctx: TenantContext) -> dict:
         )
     except ToolError as exc:
         raise HTTPError(400, str(exc)) from exc
+
+
+# ---- stage 6: Ask data -----------------------------------------------------------------------
+
+
+async def data_schema(request: Request, ctx: TenantContext) -> dict:
+    st = _state(request)
+    b = st.businesses.get(ctx.tenant_id)
+    return {
+        "business": {"name": b.name, "description": b.description} if b else None,
+        "role": "manager" if MANAGER_ROLE in ctx.roles else "staff",
+        "objects": schema_for(st.store, ctx),
+    }
+
+
+async def data_examples(request: Request, ctx: TenantContext) -> dict:
+    return {"examples": list(_state(request).data_examples.get(ctx.tenant_id, {}))}
+
+
+async def data_ask(request: Request, ctx: TenantContext) -> dict:
+    st = _state(request)
+    req = await _body(request, AskReq)
+    if st.live_llm is not None:
+        llm, answer_llm, mode = st.live_llm, st.live_llm, "live"
+    else:
+        plan = st.data_examples.get(ctx.tenant_id, {}).get(req.question)
+        if plan is None:
+            return {
+                "status": "offline",
+                "mode": "offline",
+                "answer": "Offline mode replays recorded query plans, so pick an example question, "
+                "or build the query yourself below. Set ANTHROPIC_API_KEY before starting the app "
+                "to ask anything.",
+            }
+        llm, answer_llm, mode = FakeLLM([json.dumps({"query": plan})]), None, "offline"
+    result = await run_in_threadpool(
+        lambda: ask_data(llm, st.store, ctx, req.question, answer_llm=answer_llm)
+    )
+    return {**result.to_dict(), "mode": mode}
+
+
+async def data_query(request: Request, ctx: TenantContext) -> dict:
+    """The query builder: the user writes the query, so no model is involved."""
+    st = _state(request)
+    req = await _body(request, DataQueryReq)
+    try:
+        query = parse_query(req.query)
+        result = execute(st.store, ctx, query)
+    except QueryError as exc:
+        raise HTTPError(400, str(exc)) from exc
+    return {"description": describe(query), "query": query.model_dump(exclude_defaults=True),
+            "result": result.to_dict()}  # fmt: skip
+
+
+async def browse_records(request: Request, ctx: TenantContext) -> dict:
+    st = _state(request)
+    try:
+        query = parse_query({"object": request.path_params["name"], "limit": 25})
+        return execute(st.store, ctx, query).to_dict()
+    except QueryError as exc:
+        raise HTTPError(404, str(exc)) from exc
 
 
 # ---- stage 3: documents -----------------------------------------------------------------------
@@ -676,6 +773,11 @@ def create_app(*, secret: str | None = None, live_llm: LLMClient | None = None) 
         Route("/api/changes", api(propose_change), methods=["POST"]),
         Route("/api/changes/{change_id}/approve", api(approve_change), methods=["POST"]),
         Route("/api/documents", api(list_documents)),
+        Route("/api/objects/{name}/records", api(browse_records)),
+        Route("/api/data/schema", api(data_schema)),
+        Route("/api/data/examples", api(data_examples)),
+        Route("/api/data/ask", api(data_ask), methods=["POST"]),
+        Route("/api/data/query", api(data_query), methods=["POST"]),
         Route("/api/ask", api(ask), methods=["POST"]),
         Route("/api/incident", api(get_incident)),
         Route("/api/incident/start", api(start_incident), methods=["POST"]),

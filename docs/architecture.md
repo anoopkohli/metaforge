@@ -123,6 +123,18 @@ TriageTools(ctx-scoped) ◄── JSON action ── LLMClient ◄── <observ
 - **Runbook facts drive the simulation.** Thresholds and sizes come from each tenant's synthetic
   runbooks, so retrieving the runbook genuinely helps.
 
+## Stage 6 business data + Ask data
+
+- **Records are tenant rows in the store** (`tenant_records`, keyed by tenant, object, id) and are read
+  only via `list_records(ctx, ...)`.
+- **Restricted is a field property** (`FieldDef.restricted`), enforced by the reader (`dataqa`), with the
+  role taken from the token (`TenantContext.roles`).
+- **A query language, not SQL.** `dataqa.Query` is a strict pydantic model interpreted in Python. Nothing
+  the model writes becomes code; validation uses the effective schema, so hidden and foreign fields and
+  objects simply do not exist.
+- **The planner never sees data.** It gets the schema and the question; only the validated result rows
+  reach the (optional) answer model.
+
 ## Decisions
 
 1. **Explicit `TenantContext` on every store call.** The context comes from `verify_token`, never from

@@ -20,6 +20,10 @@
       <span id="mode-badge" class="badge"></span>
       <label class="tenant-label" for="tenant-select">Company</label>
       <select id="tenant-select" aria-label="Log in as company"></select>
+      <select id="role-select" aria-label="Role">
+        <option value="staff">staff</option>
+        <option value="manager">manager</option>
+      </select>
       <button id="login-btn" class="btn btn-primary">Log in</button>
     </div>
   </header>
@@ -28,6 +32,7 @@
     <button class="tab active" data-tab="overview" role="tab">Overview</button>
     <button class="tab" data-tab="data" role="tab">Data model <span class="stage">1–2</span></button>
     <button class="tab" data-tab="docs" role="tab">Ask documents <span class="stage">3</span></button>
+    <button class="tab" data-tab="ask-data" role="tab">Ask data <span class="stage">6</span></button>
     <button class="tab" data-tab="incident" role="tab">Incident <span class="stage">5</span></button>
     <button class="tab" data-tab="lab" role="tab">Security lab</button>
     <button class="tab" data-tab="evals" role="tab">Evals <span class="stage">4</span></button>
@@ -41,14 +46,20 @@
       <div class="hero">
         <h1>Many companies, one app, and AI that cannot mix them up</h1>
         <p>
-          metaforge is a pretend business app shared by five made-up companies (<em>tenants</em>).
-          Each one has its own records and documents. Hidden inside every company's data is a unique
+          metaforge is a pretend business app shared by five made-up companies (<em>tenants</em>):
+          a taxi company, a law firm, a dental office, a builder and a coffee roaster. Each has its
+          own staff, records and documents. Hidden inside every company's data is a unique
           secret marker, a <strong>canary</strong>. If one company ever sees another company's canary,
           that is a leak, and the tests catch it.
         </p>
         <p>
           On top of that app sit five AI features. Each was built the same way: list what could go
           wrong, write attacks that try it, then build the feature until the attacks fail.
+        </p>
+        <p>
+          Inside each company, people log in as <strong>staff</strong> or <strong>manager</strong>.
+          Some fields, like salaries, patients' dates of birth and billing rates, are
+          <strong>restricted</strong> to managers. The AI cannot get around that, whatever it is asked.
         </p>
       </div>
 
@@ -60,6 +71,10 @@
         <article class="card">
           <h3>Ask documents <span class="stage">stage 3</span></h3>
           <p>Ask questions about your company's policies. Answers only ever use your company's documents, and cite them.</p>
+        </article>
+        <article class="card">
+          <h3>Ask data <span class="stage">stage 6</span></h3>
+          <p>Ask questions about your company's records. The AI writes a checked query, never raw SQL, and restricted fields stay restricted.</p>
         </article>
         <article class="card">
           <h3>Incident <span class="stage">stage 5</span></h3>
@@ -80,6 +95,7 @@
         <ol>
           <li>Log in as <strong>fjord</strong> and open <em>Ask documents</em>. Ask about the expense limit.</li>
           <li>Switch to <strong>cinder</strong> and ask the same question. Different company, different answer.</li>
+          <li>In <em>Ask data</em>, ask about average salaries as <strong>staff</strong>, then log in again as <strong>manager</strong>.</li>
           <li>In <em>Incident</em>, start a <em>queue backlog</em> with the malicious instruction ticked, and run the <em>Fooled AI</em>. Watch its injected moves bounce off.</li>
           <li>In the <em>Security lab</em>, run a suite and compare the secure and unsafe columns.</li>
         </ol>
@@ -144,6 +160,41 @@
           </div>
           <div id="ask-suggestions" class="chips"></div>
           <div id="ask-result"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Ask data -->
+    <section id="tab-ask-data" class="panel">
+      <div class="explain">
+        <h3>What you are looking at</h3>
+        <p>
+          Ask a question about your company's records. The AI does not get the data; it gets the
+          list of objects and fields and writes a <strong>query</strong> in a small, checked format
+          (never SQL). The server checks the query against your company and your role, runs it on
+          your company's records only, and shows you the query, the rows and a short answer. Fields
+          marked 🔒 are restricted to managers in <em>every</em> part of a query: not just showing a
+          salary, but filtering, sorting or averaging by it.
+        </p>
+      </div>
+      <div class="grid-2 wide-right">
+        <div class="box">
+          <h3 id="biz-name">Your data</h3>
+          <p id="biz-desc" class="muted small"></p>
+          <div id="schema-list"></div>
+        </div>
+        <div class="box">
+          <h3>Ask a question</h3>
+          <div class="row">
+            <input id="data-question" type="text" maxlength="500" placeholder="How many rides were there by pickup zone?">
+            <button id="data-ask-btn" class="btn btn-primary">Ask</button>
+          </div>
+          <div id="data-examples" class="chips"></div>
+          <div id="data-result"></div>
+          <details class="builder">
+            <summary>Build a query yourself (no AI)</summary>
+            <div id="builder"></div>
+          </details>
         </div>
       </div>
     </section>
@@ -215,6 +266,7 @@
           <button class="btn lab-btn" data-suite="mcp">AI tools (MCP) · 13</button>
           <button class="btn lab-btn" data-suite="rag">Documents (RAG) · 12</button>
           <button class="btn lab-btn" data-suite="triage">Incident agent · 8</button>
+          <button class="btn lab-btn" data-suite="dataqa">Ask data · 9</button>
           <span id="lab-status" class="muted"></span>
         </div>
         <div id="lab-result"></div>

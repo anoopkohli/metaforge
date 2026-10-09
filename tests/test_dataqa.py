@@ -383,3 +383,19 @@ def test_scopes_apply_per_object(world):
         assert mine < everyone
     clients = execute(store, actx, parse_query({"object": "client", "aggregate": {"fn": "count"}}))
     assert clients.rows == [{"value": 30}]  # no scope on clients
+
+
+def test_records_can_be_selected_by_id(world):
+    store, _ = world
+    res = execute(
+        store,
+        ctx(world),
+        parse_query(
+            {
+                "object": "vehicle",
+                "select": ["id", "plate"],
+                "where": [{"field": "id", "op": "=", "value": "vehicle-0003"}],
+            }
+        ),
+    )
+    assert res.rows and res.rows[0]["id"] == "vehicle-0003"

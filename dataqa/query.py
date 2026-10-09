@@ -162,6 +162,8 @@ def _display_field(view: _View) -> str | None:
     return None
 
 
+_ID_FIELD = FieldDef(name="id", type="string", label="Record ID")
+
 # ---- validation -------------------------------------------------------------------------------
 
 _NUMERIC = {"integer", "decimal"}
@@ -205,6 +207,8 @@ def validate(
     manager = _is_manager(ctx) or naive
 
     def known(name: str, clause: str) -> FieldDef | None:
+        if name == "id":  # every record's ID; needed to propose updates, never sensitive
+            return _ID_FIELD
         f = view.fields.get(name)
         if f is None:
             errors.append(f"{clause}: {q.object!r} has no field {name!r}")

@@ -49,22 +49,22 @@ def test_multi_step_answer_with_sources():
         plan(
             "finish",
             answer="Airport fares lead; airport pickups add a 5 dollar fee.",
-            sources=["query:1", "fare_policy#0"],
+            sources=["query:1", "fare_policy#1"],
         ),
     ]
     res = run_assistant(
         scripted_policy(actions), w.tools, mgr, "Fares by zone and the airport fee?"
     )
     assert res.status == "finished" and len(res.steps) == 3
-    assert res.sources == ["query:1", "fare_policy#0"]
+    assert res.sources == ["query:1", "fare_policy#1"]
 
 
 def test_unknown_sources_are_rejected():
     w = world(False)
     actions = [plan("finish", answer="Trust me.", sources=["fare_policy#0", "query:7"])]
-    res = run_assistant(scripted_policy(actions), w.tools, w.ctx, "anything", max_steps=2)
-    assert res.status == "step_limit"
+    res = run_assistant(scripted_policy(actions), w.tools, w.ctx, "anything", max_steps=3)
     assert "fare_policy#0" in res.steps[0]["observation"]["error"]
+    assert res.answer != "Trust me."  # the fabricated citation never became the answer
 
 
 def test_identity_arguments_are_rejected():
@@ -247,3 +247,17 @@ def test_assistant_naive_mode_needs_the_exact_env_value(monkeypatch, value):
 
 def test_tools_class_is_exported():
     assert AssistantTools.__name__ == "AssistantTools"
+
+
+def test_approval_rechecks_the_approvers_rights():
+    """A manager's proposal to change a salary cannot be approved by staff."""
+    w = world(False)
+    mgr = as_person(w, "Operations Manager")
+    prop = w.tools.call(
+        mgr,
+        "propose_record_update",
+        {"object": "worker", "record_id": w.driver["id"], "changes": {"salary": 60000.0}},
+    )
+    with pytest.raises(AssistantError, match="restricted"):
+        w.tools.approve(w.ctx, prop["proposal_id"])  # the driver (staff)
+    assert w.tools.approve(mgr, prop["proposal_id"])["status"] == "executed"

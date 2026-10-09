@@ -49,7 +49,7 @@ def test_chain_verifies(log):
 @pytest.mark.parametrize(
     "tamper",
     [
-        "UPDATE audit_log SET detail = '{\"tool\": \"none\"}' "
+        'UPDATE audit_log SET detail = \'{"tool": "none"}\' '
         "WHERE tenant_id = 'fjord' AND seq = 3",
         "UPDATE audit_log SET actor = 'worker-0001' WHERE tenant_id = 'fjord' AND seq = 2",
         "DELETE FROM audit_log WHERE tenant_id = 'fjord' AND seq = 3",

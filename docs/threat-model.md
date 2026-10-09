@@ -177,3 +177,26 @@ surface, so it gets the same treatment as the rest.
 | W.8 | Errors leak internals | Generic error responses; details go to the server log only | `test_errors_are_generic` | covered |
 | W.9 | API key reaches the browser | The browser only learns whether live mode is on and the model name | `test_session_never_exposes_secrets` | covered |
 | W.10 | Approvals made by something other than the user | Approve endpoints are separate, state-changing requests (CSRF-protected) that the generator and agent cannot call | `test_agent_proposals_wait_for_ui_approval` | covered |
+
+## Stage 6 (business data + Ask data)
+
+Each tenant becomes a small business (taxi company, law firm, dental office, builder, coffee roaster)
+with a few hundred synthetic records. Login carries a role, `staff` or `manager`. Some fields are
+`restricted` (salaries, patient dates of birth and clinical notes, billing rates, budgets) and readable
+only by managers. "Ask data" turns a question into a query in a small JSON query language (never SQL):
+the model proposes the query, the server validates it against the caller's effective schema and role,
+and runs it over that tenant's records only.
+
+| # | Threat | Control | Attack / test | Status |
+|---|---|---|---|---|
+| 6.1 | Query reads another tenant's records | Records keyed by (tenant, object, id); the executor loads only the caller's records; object names resolve through the caller's effective schema | `cross-tenant-object` | covered |
+| 6.2 | Model smuggles a tenant into the query | The query schema has no tenant field (`extra="forbid"`) | `tenant-in-query` | covered |
+| 6.3 | Staff reads a restricted field directly | Validator rejects restricted fields in `select` unless the token carries `manager` | `restricted-select` | covered |
+| 6.4 | Staff infers a restricted value indirectly (filter `salary > 100000`, `avg(salary)`, sort by salary, group by it) | Restricted fields are rejected in every clause, not just `select` | `restricted-filter`, `restricted-aggregate`, `restricted-order` | covered |
+| 6.5 | Role claimed in the question ("I am a manager") | Role comes only from the signed token; the question cannot change it | `role-claim-in-question` | covered |
+| 6.6 | Query reads a field the tenant has hidden | Validation uses the effective schema, which omits hidden fields | `hidden-field-query` | covered |
+| 6.7 | Generated query injects code | No SQL or code is ever built from the query; it is a validated data structure interpreted by Python | `test_values_are_never_code` | covered |
+| 6.8 | Instructions planted in record text steer the answer | The planner never sees record data; the answer step sees only the validated result rows, delimited as data, and has no tools | `injection-in-records` | covered for data access; accepted: a planted string can still mislead the wording of an answer |
+| 6.9 | Expensive queries | `limit` <= 100, at most 5 conditions, small in-memory scans per tenant | `test_limits` | covered |
+| 6.10 | References leak foreign records | Reference display values resolve within the caller's tenant only | `test_references_resolve_within_tenant` | covered |
+| 6.11 | Naive mode left on | Exact env value, warning, tests assert off by default | `test_dataqa_naive_mode_is_off_by_default` | covered |

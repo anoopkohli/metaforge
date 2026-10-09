@@ -29,7 +29,8 @@ You have at most {MAX_STEPS} steps.
 
 Tools:
 - search_documents {{"query": text}}: the company's policies and runbooks.
-- list_data {{}}: objects, fields and record counts this person can see; restricted fields are marked.
+- list_data {{}}: objects, fields and record counts this person can see; restricted fields are
+  marked.
 - describe_object {{"name": object}}
 - query_data {{"query": {{"object": ..., "select": [...], "where": [{{"field", "op", "value"}}],
   "group_by": field, "aggregate": {{"fn": "count|sum|avg|min|max", "field": ...}},

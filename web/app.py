@@ -35,10 +35,14 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
+from assistant.agent import run_assistant
+from assistant.reference import scripted_policy
+from assistant.tools import AssistantError, AssistantTools
 from attacks.catalogue import SUITES as ATTACK_CATALOGUE
 from chaos import FAULT_TYPES, ChaosEnvironment
+from core.audit import AuditAccessDenied, AuditLog
 from core.auth import AuthError, issue_token, verify_token
-from core.business import BusinessProfile, seed_business
+from core.business import BusinessProfile, directory, roles_for, seed_business
 from core.llm.base import FakeLLM, LLMClient
 from core.llm.embeddings import HashingEmbedder
 from core.store.sqlite_store import MetadataStore
@@ -64,6 +68,7 @@ ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 STATIC = Path(__file__).parent / "static"
 GENERATOR_DATASET = Path(__file__).parent.parent / "evals" / "datasets" / "generator.jsonl"
 DATAQA_DATASET = Path(__file__).parent.parent / "evals" / "datasets" / "dataqa.jsonl"
+ASSISTANT_DATASET = Path(__file__).parent.parent / "evals" / "datasets" / "assistant.jsonl"
 
 CSP = (
     "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
@@ -100,10 +105,11 @@ class _Req(BaseModel):
 
 
 class LoginReq(_Req):
-    # This *is* the (demo) identity provider: choosing a company and role here stands in for
-    # signing in. After this, both come only from the signed cookie.
+    # This *is* the (demo) identity provider: choosing a company and a person stands in for signing
+    # in. The person's roles come from the directory, and after this everything comes only from the
+    # signed cookie.
     tenant_id: str = Field(max_length=64)
-    role: Literal["staff", "manager"] = "staff"
+    worker_id: str = Field(max_length=64)
 
 
 class DataQueryReq(_Req):
@@ -132,7 +138,7 @@ class TriageReq(_Req):
 
 
 class LabReq(_Req):
-    suite: Literal["mcp", "rag", "triage", "dataqa"]
+    suite: Literal["mcp", "rag", "triage", "dataqa", "assistant"]
 
 
 # ---- state ------------------------------------------------------------------------------------
@@ -159,6 +165,10 @@ class AppState:
     model: str | None
     examples: dict[str, list[str]]
     businesses: dict[str, BusinessProfile]
+    people: dict[str, list[dict]]
+    audit: AuditLog
+    assistant: AssistantTools
+    assistant_examples: dict[str, dict[str, dict]]  # tenant -> question -> {title, replay}
     data_examples: dict[str, dict[str, dict]]  # tenant -> question -> recorded query plan
     incidents: dict[str, Incident] = field(default_factory=dict)
     lab_lock: threading.Lock = field(default_factory=threading.Lock)
@@ -188,6 +198,17 @@ def _load_data_examples() -> dict[str, dict[str, dict]]:
     return out
 
 
+def _load_assistant_examples() -> dict[str, dict[str, dict]]:
+    out: dict[str, dict[str, dict]] = {}
+    for case in load_jsonl(ASSISTANT_DATASET):
+        i = case.input
+        out.setdefault(i["tenant"], {})[i["question"]] = {
+            "title": i["title"],
+            "replay": i["replay"],
+        }
+    return out
+
+
 def _live_llm_from_env() -> tuple[LLMClient | None, str | None]:
     if not os.environ.get("ANTHROPIC_API_KEY"):
         return None, None
@@ -208,6 +229,7 @@ def build_state(secret: str | None, live_llm: LLMClient | None) -> AppState:
     elif isinstance(live_llm, MeteredLLM):
         model = live_llm.model
     rag = RagService(SiloIndex(), HashingEmbedder(), live_llm or extractive_llm())
+    audit = AuditLog(":memory:")
     documents: dict[str, list[dict]] = {}
     for t in tenants:
         documents[t.tenant_id] = []
@@ -228,6 +250,10 @@ def build_state(secret: str | None, live_llm: LLMClient | None) -> AppState:
         model=model,
         examples=_load_examples(),
         businesses=businesses,
+        people={t.tenant_id: directory(store, t) for t in tenants},
+        audit=audit,
+        assistant=AssistantTools(store, rag, audit),
+        assistant_examples=_load_assistant_examples(),
         data_examples=_load_data_examples(),
     )
 
@@ -342,16 +368,26 @@ class SecurityMiddleware:
 
 async def get_session(request: Request) -> dict:
     st = _state(request)
-    tenant = role = None
+    tenant = role = user = None
+    scopes: list[str] = []
     try:
         ctx = _session(request)
         tenant = ctx.tenant_id
         role = "manager" if MANAGER_ROLE in ctx.roles else "staff"
+        person = next((p for p in st.people.get(tenant, []) if p["id"] == ctx.subject), None)
+        if person:
+            user = {"id": person["id"], "name": person["name"], "title": person["title"]}
+        for r in sorted(ctx.roles):
+            if r.startswith("own:"):
+                obj, fld = r[4:].split(".", 1)
+                scopes.append(f"{obj}: only rows where {fld} is you")
     except HTTPError:
         pass
     return {
         "tenant": tenant,
         "role": role,
+        "user": user,
+        "scopes": scopes,
         "tenants": st.tenant_ids,
         "businesses": {
             tid: {"name": b.name, "kind": b.kind, "description": b.description}
@@ -367,15 +403,31 @@ async def login(request: Request) -> Response:
     req = await _body(request, LoginReq)
     if req.tenant_id not in st.tenant_ids:
         raise HTTPError(400, "unknown tenant")
-    roles = (MANAGER_ROLE,) if req.role == "manager" else ()
+    person = next((p for p in st.people[req.tenant_id] if p["id"] == req.worker_id), None)
+    if person is None:
+        raise HTTPError(400, "unknown person")
+    worker = {"job_title": person["title"]}
+    roles = roles_for(req.tenant_id, worker)
     token = issue_token(
-        st.secret, req.tenant_id, subject="demo-user", roles=roles, ttl_seconds=SESSION_TTL
+        st.secret, req.tenant_id, subject=person["id"], roles=roles, ttl_seconds=SESSION_TTL
     )
-    response = JSONResponse({"tenant": req.tenant_id, "role": req.role})
+    ctx = TenantContext(tenant_id=req.tenant_id, subject=person["id"], roles=frozenset(roles))
+    st.audit.append(ctx, "sign_in", {"name": person["name"], "title": person["title"]})
+    role = "manager" if MANAGER_ROLE in roles else "staff"
+    response = JSONResponse({"tenant": req.tenant_id, "role": role, "user": person["name"]})
     response.set_cookie(
         SESSION_COOKIE, token, max_age=SESSION_TTL, httponly=True, samesite="strict", path="/"
     )
     return response
+
+
+async def get_directory(request: Request) -> dict:
+    """The demo identity provider's people picker: names, titles and roles, nothing sensitive."""
+    st = _state(request)
+    tid = request.query_params.get("tenant_id", "")
+    if tid not in st.tenant_ids:
+        raise HTTPError(400, "unknown tenant")
+    return {"people": st.people[tid]}
 
 
 async def logout(request: Request) -> Response:
@@ -444,14 +496,17 @@ async def propose_change(request: Request, ctx: TenantContext) -> dict:
 
 
 async def approve_change(request: Request, ctx: TenantContext) -> dict:
+    st = _state(request)
     change_id = request.path_params["change_id"]
     try:
         # This request *is* the user's approval: a deliberate, CSRF-protected click.
-        return _state(request).tools.call(
+        result = st.tools.call(
             ctx, "apply_change", {"change_id": change_id}, confirmation=Confirmation(change_id)
         )
     except ToolError as exc:
         raise HTTPError(400, str(exc)) from exc
+    st.audit.append(ctx, "schema.change_applied", {"change_id": change_id[:16]})
+    return result
 
 
 # ---- stage 6: Ask data -----------------------------------------------------------------------
@@ -490,6 +545,12 @@ async def data_ask(request: Request, ctx: TenantContext) -> dict:
     result = await run_in_threadpool(
         lambda: ask_data(llm, st.store, ctx, req.question, answer_llm=answer_llm)
     )
+    st.audit.append(
+        ctx,
+        "data.ask",
+        {"question": req.question[:300], "status": result.status,
+         "object": (result.query or {}).get("object")},
+    )  # fmt: skip
     return {**result.to_dict(), "mode": mode}
 
 
@@ -501,7 +562,15 @@ async def data_query(request: Request, ctx: TenantContext) -> dict:
         query = parse_query(req.query)
         result = execute(st.store, ctx, query)
     except QueryError as exc:
+        obj = req.query.get("object")
+        outcome = "denied" if "restricted" in str(exc) else "error"
+        st.audit.append(
+            ctx, "data.query", {"outcome": outcome, "object": obj if isinstance(obj, str) else None}
+        )
         raise HTTPError(400, str(exc)) from exc
+    st.audit.append(
+        ctx, "data.query", {"outcome": "ok", "object": query.object, "rows": result.matched}
+    )
     return {"description": describe(query), "query": query.model_dump(exclude_defaults=True),
             "result": result.to_dict()}  # fmt: skip
 
@@ -513,6 +582,101 @@ async def browse_records(request: Request, ctx: TenantContext) -> dict:
         return execute(st.store, ctx, query).to_dict()
     except QueryError as exc:
         raise HTTPError(404, str(exc)) from exc
+
+
+# ---- stage 7: assistant and audit log -----------------------------------------------------------
+
+
+def _person_title(st: AppState, ctx: TenantContext) -> str | None:
+    return next(
+        (p["title"] for p in st.people.get(ctx.tenant_id, []) if p["id"] == ctx.subject), None
+    )
+
+
+async def assistant_examples(request: Request, ctx: TenantContext) -> dict:
+    st = _state(request)
+    title = _person_title(st, ctx)
+    examples = st.assistant_examples.get(ctx.tenant_id, {})
+    return {
+        "examples": [
+            {
+                "question": q,
+                "title": e["title"],
+                "available": st.live_llm is not None or e["title"] == title,
+            }
+            for q, e in examples.items()
+        ]
+    }
+
+
+async def assistant_ask(request: Request, ctx: TenantContext) -> dict:
+    st = _state(request)
+    req = await _body(request, AskReq)
+    if st.live_llm is not None:
+        llm, mode = st.live_llm, "live"
+    else:
+        example = st.assistant_examples.get(ctx.tenant_id, {}).get(req.question)
+        if example is None or example["title"] != _person_title(st, ctx):
+            return {
+                "status": "offline",
+                "mode": "offline",
+                "answer": "Offline mode replays recorded conversations, so pick an example "
+                "recorded for your job title (sign in as that person to try the others). Set "
+                "ANTHROPIC_API_KEY before starting the app to ask anything.",
+                "steps": [],
+                "proposals": [],
+            }
+        llm, mode = scripted_policy(example["replay"]), "offline"
+    result = await run_in_threadpool(run_assistant, llm, st.assistant, ctx, req.question)
+    mine = {p["id"]: p for p in st.assistant.proposals(ctx)}
+    out = result.to_dict()
+    out["proposals"] = [mine[pid] for pid in result.proposals if pid in mine]
+    return {**out, "mode": mode}
+
+
+async def assistant_proposals(request: Request, ctx: TenantContext) -> dict:
+    return {"proposals": _state(request).assistant.proposals(ctx)}
+
+
+async def assistant_decide(request: Request, ctx: TenantContext) -> dict:
+    st = _state(request)
+    pid = request.path_params["proposal_id"]
+    decision = request.path_params["decision"]
+    try:
+        # This request is the user's decision: a deliberate, CSRF-protected click.
+        if decision == "approve":
+            return await run_in_threadpool(st.assistant.approve, ctx, pid)
+        if decision == "reject":
+            return st.assistant.reject(ctx, pid)
+    except AssistantError as exc:
+        raise HTTPError(400, str(exc)) from exc
+    raise HTTPError(404, "unknown decision")
+
+
+async def audit_entries(request: Request, ctx: TenantContext) -> dict:
+    st = _state(request)
+    try:
+        entries = st.audit.entries(ctx, limit=300)
+    except AuditAccessDenied as exc:
+        raise HTTPError(403, str(exc)) from exc
+    names = {p["id"]: f"{p['name']} ({p['title']})" for p in st.people.get(ctx.tenant_id, [])}
+    return {
+        "entries": [{**e.to_dict(), "actor_name": names.get(e.actor, e.actor)} for e in entries]
+    }
+
+
+async def audit_verify(request: Request, ctx: TenantContext) -> dict:
+    st = _state(request)
+    try:
+        result = st.audit.verify(ctx)
+    except AuditAccessDenied as exc:
+        raise HTTPError(403, str(exc)) from exc
+    return {
+        "ok": result.ok,
+        "checked": result.checked,
+        "first_bad": result.first_bad,
+        "reason": result.reason,
+    }
 
 
 # ---- stage 3: documents -----------------------------------------------------------------------
@@ -657,6 +821,7 @@ async def approve_remediation(request: Request, ctx: TenantContext) -> dict:
     def work() -> dict:
         try:
             inc.tools.approve(ctx, pid, Confirmation(pid))  # the user's click is the approval
+            st.audit.append(ctx, "incident.fix_approved", {"proposal_id": pid})
         except TriageError as exc:
             raise HTTPError(400, str(exc)) from exc
         inc.env.run(12)
@@ -766,6 +931,17 @@ def create_app(*, secret: str | None = None, live_llm: LLMClient | None = None) 
         Route("/api/session", api(get_session, auth=False)),
         Route("/api/login", api(login, auth=False), methods=["POST"]),
         Route("/api/logout", api(logout, auth=False), methods=["POST"]),
+        Route("/api/directory", api(get_directory, auth=False)),
+        Route("/api/assistant/examples", api(assistant_examples)),
+        Route("/api/assistant/ask", api(assistant_ask), methods=["POST"]),
+        Route("/api/assistant/proposals", api(assistant_proposals)),
+        Route(
+            "/api/assistant/proposals/{proposal_id}/{decision}",
+            api(assistant_decide),
+            methods=["POST"],
+        ),
+        Route("/api/audit", api(audit_entries)),
+        Route("/api/audit/verify", api(audit_verify), methods=["POST"]),
         Route("/api/objects", api(list_objects)),
         Route("/api/objects/{name}", api(describe_object)),
         Route("/api/generate/examples", api(generate_examples)),

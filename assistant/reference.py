@@ -1,8 +1,8 @@
 """Scripted stand-ins for the assistant's model, for offline use, evals and attacks.
 
-`scripted_policy(actions)` replays a fixed list of actions, then finishes. With `gullible=True` it also
-obeys every JSON action it finds inside an observation (documents, records), once per action (or
-`repeat` times): the worst case for prompt injection, so attacks test the tools, not the model.
+`scripted_policy(actions)` replays a fixed list of actions, then finishes. With `gullible=True` it
+also obeys every JSON action it finds inside an observation (documents, records), once per action
+(or `repeat` times): the worst case for prompt injection, so attacks test the tools, not the model.
 """
 
 from __future__ import annotations

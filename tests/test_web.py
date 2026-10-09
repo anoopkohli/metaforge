@@ -25,8 +25,19 @@ def client():
         yield c
 
 
-def login(c, tenant="fjord", role="staff"):
-    r = c.post("/api/login", json={"tenant_id": tenant, "role": role}, headers=H)
+def pick(c, tenant="fjord", role="staff", title=None):
+    """A person from the company directory: by job title, or a manager, or unscoped staff."""
+    people = c.get("/api/directory", params={"tenant_id": tenant}).json()["people"]
+    if title:
+        return next(p for p in people if p["title"] == title)
+    if role == "manager":
+        return next(p for p in people if "manager" in p["roles"])
+    return next(p for p in people if not p["roles"])
+
+
+def login(c, tenant="fjord", role="staff", title=None):
+    person = pick(c, tenant, role, title)
+    r = c.post("/api/login", json={"tenant_id": tenant, "worker_id": person["id"]}, headers=H)
     assert r.status_code == 200, r.text
     return r
 
@@ -44,7 +55,9 @@ def test_login_sets_an_httponly_strict_cookie(client):
 
 
 def test_unknown_tenant_cannot_log_in(client):
-    r = client.post("/api/login", json={"tenant_id": "nobody"}, headers=H)
+    r = client.post(
+        "/api/login", json={"tenant_id": "nobody", "worker_id": "worker-0001"}, headers=H
+    )
     assert r.status_code == 400
 
 
@@ -85,14 +98,14 @@ def test_session_never_exposes_secrets(client, monkeypatch):
 
 
 def test_post_without_csrf_header_is_rejected(client):
-    r = client.post("/api/login", json={"tenant_id": "fjord"})
+    r = client.post("/api/login", json={"tenant_id": "fjord", "worker_id": "worker-0001"})
     assert r.status_code == 403
 
 
 def test_cross_origin_post_is_rejected(client):
     r = client.post(
         "/api/login",
-        json={"tenant_id": "fjord"},
+        json={"tenant_id": "fjord", "worker_id": "worker-0001"},
         headers={**H, "Origin": "http://evil.example"},
     )
     assert r.status_code == 403
@@ -361,3 +374,95 @@ def test_front_end_clears_every_tenant_view_on_session_change():
     login_body = js[js.index("async function login()") :][:200]
     assert "resetTenantViews()" in login_body.split("await")[0]  # cleared before any request
     assert "if (epoch !== state.epoch) throw new StaleResponse()" in js
+
+
+# ---- stage 7: people, row scopes, the assistant, the audit log --------------------------------
+
+
+def test_directory_lists_people_without_sensitive_fields(client):
+    people = client.get("/api/directory", params={"tenant_id": "fjord"}).json()["people"]
+    assert len(people) == 24 and {"id", "name", "title", "roles"} <= set(people[0])
+    text = json.dumps(people)
+    assert "salary" not in text and "badge" not in text
+
+
+@pytest.mark.parametrize("body", [
+    {"tenant_id": "fjord", "worker_id": "worker-0001", "role": "manager"},
+    {"tenant_id": "fjord", "worker_id": "worker-9999"},
+])  # fmt: skip
+def test_sign_in_needs_a_real_person_and_no_role(client, body):
+    r = client.post("/api/login", json=body, headers=H)
+    assert r.status_code in (400, 422)
+
+
+def test_driver_sees_only_their_rides(client):
+    login(client, title="Driver")
+    session = client.get("/api/session").json()
+    assert session["user"]["title"] == "Driver" and session["scopes"]
+    rides = client.get("/api/objects/ride/records").json()
+    assert rides["matched"] < 220 and len({r["driver"] for r in rides["rows"]}) == 1
+
+
+def test_assistant_offline_example_runs_for_its_title(client):
+    login(client, title="Driver")
+    examples = client.get("/api/assistant/examples").json()["examples"]
+    mine = [e for e in examples if e["available"]]
+    assert mine and all(e["title"] == "Driver" for e in mine)
+    res = client.post(
+        "/api/assistant/ask", json={"question": mine[0]["question"]}, headers=H
+    ).json()
+    assert res["status"] == "finished" and res["answer"]
+    other = next(e for e in examples if not e["available"])
+    off = client.post("/api/assistant/ask", json={"question": other["question"]}, headers=H).json()
+    assert off["status"] == "offline"
+
+
+def test_assistant_proposal_needs_ui_approval(client):
+    login(client, "gable", title="Receptionist")
+    q = next(
+        e["question"]
+        for e in client.get("/api/assistant/examples").json()["examples"]
+        if e["available"]
+    )
+    res = client.post("/api/assistant/ask", json={"question": q}, headers=H).json()
+    [prop] = res["proposals"]
+    assert prop["status"] == "proposed"
+    done = client.post(f"/api/assistant/proposals/{prop['id']}/approve", headers=H).json()
+    assert done["status"] == "executed"
+    again = client.post(f"/api/assistant/proposals/{prop['id']}/approve", headers=H)
+    assert again.status_code == 400
+
+
+def test_audit_is_for_managers_and_verifies(client):
+    login(client, title="Driver")
+    client.post(
+        "/api/data/query",
+        json={"query": {"object": "ride", "aggregate": {"fn": "count"}}},
+        headers=H,
+    )
+    assert client.get("/api/audit").status_code == 403
+    login(client, role="manager")
+    client.post(
+        "/api/data/query",
+        json={"query": {"object": "worker", "select": ["full_name", "salary"]}},
+        headers=H,
+    )
+    entries = client.get("/api/audit").json()["entries"]
+    actions = {e["action"] for e in entries}
+    assert {"sign_in", "data.query"} <= actions
+    assert any(e["actor_name"] for e in entries)
+    assert client.post("/api/audit/verify", headers=H).json()["ok"] is True
+    login(client, "cinder", role="manager")
+    assert all(e["actor"] != "" for e in client.get("/api/audit").json()["entries"])
+    assert not any(e["action"] == "data.query" for e in client.get("/api/audit").json()["entries"])
+
+
+def test_audit_holds_no_salary_values(client):
+    login(client, role="manager")
+    rows = client.post(
+        "/api/data/query",
+        json={"query": {"object": "worker", "select": ["salary"], "limit": 100}},
+        headers=H,
+    ).json()["result"]["rows"]
+    text = json.dumps(client.get("/api/audit").json())
+    assert rows and not any(json.dumps(r["salary"]) in text for r in rows)

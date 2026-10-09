@@ -7,12 +7,13 @@ Invariants:
   filtered), data through `dataqa` (row scopes and restricted fields enforced).
 - Writes are proposals only. A record update is checked against the effective schema, restricted
   fields, the caller's row scope and reference targets, when proposed and again when approved.
-  Schema changes need a manager. `approve` is called by the UI on the user's click, never by the agent.
+  Schema changes need a manager. `approve` is called by the UI on the user's click, never by the
+  agent.
 - Every call, denial, proposal, approval and rejection is appended to the tenant's audit log, with
   names, counts and outcomes only, never record values.
 
-Naive mode (exact env value only) trusts identity arguments, skips scopes and restrictions, lets anyone
-propose schema changes and executes every proposal at once.
+Naive mode (exact env value only) trusts identity arguments, skips scopes and restrictions, lets
+anyone propose schema changes and executes every proposal at once.
 """
 
 from __future__ import annotations

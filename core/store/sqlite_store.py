@@ -12,6 +12,7 @@ Postgres (with row-level security as a second layer) in stage 3.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import threading
 import time
@@ -32,6 +33,13 @@ CREATE TABLE IF NOT EXISTS tenant_objects (
     version     INTEGER NOT NULL,
     updated_at  REAL NOT NULL,
     PRIMARY KEY (tenant_id, name)
+);
+CREATE TABLE IF NOT EXISTS tenant_records (
+    tenant_id   TEXT NOT NULL,
+    object_name TEXT NOT NULL,
+    record_id   TEXT NOT NULL,
+    data        TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, object_name, record_id)
 );
 CREATE TABLE IF NOT EXISTS tenant_overrides (
     tenant_id    TEXT NOT NULL,
@@ -177,6 +185,49 @@ class MetadataStore:
                 (tid, object_name),
             ).fetchone()
         return ObjectOverride.model_validate_json(row[0]) if row else None
+
+    # ---- tenant records (rows of an object) ---------------------------------------------------
+
+    def put_records(self, ctx: TenantContext, object_name: str, records: list[dict]) -> int:
+        """Replace this tenant's records for `object_name`. Each record needs a string `id`."""
+        tid = _tenant_id(ctx)
+        rows = []
+        for rec in records:
+            rid = rec.get("id")
+            if not isinstance(rid, str) or not rid:
+                raise ValueError("every record needs a string id")
+            rows.append((tid, object_name, rid, json.dumps(rec, sort_keys=True)))
+        with self._lock:
+            self._db.execute(
+                "DELETE FROM tenant_records WHERE tenant_id = ? AND object_name = ?",
+                (tid, object_name),
+            )
+            self._db.executemany(
+                "INSERT INTO tenant_records (tenant_id, object_name, record_id, data) "
+                "VALUES (?, ?, ?, ?)",
+                rows,
+            )
+            self._db.commit()
+        return len(rows)
+
+    def list_records(self, ctx: TenantContext, object_name: str) -> list[dict]:
+        tid = _tenant_id(ctx)
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT data FROM tenant_records WHERE tenant_id = ? AND object_name = ? "
+                "ORDER BY record_id",
+                (tid, object_name),
+            ).fetchall()
+        return [json.loads(r[0]) for r in rows]
+
+    def count_records(self, ctx: TenantContext, object_name: str) -> int:
+        tid = _tenant_id(ctx)
+        with self._lock:
+            row = self._db.execute(
+                "SELECT count(*) FROM tenant_records WHERE tenant_id = ? AND object_name = ?",
+                (tid, object_name),
+            ).fetchone()
+        return int(row[0])
 
     # ---- effective view --------------------------------------------------------------------
 

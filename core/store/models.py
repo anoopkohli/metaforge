@@ -19,6 +19,8 @@ class FieldDef(BaseModel):
     required: bool = False
     label: str | None = None
     reference_to: str | None = Field(default=None, pattern=IDENT)
+    # Restricted fields are readable only by callers whose token carries the `manager` role.
+    restricted: bool = False
 
     @model_validator(mode="after")
     def _reference_consistency(self) -> FieldDef:

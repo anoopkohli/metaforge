@@ -687,3 +687,58 @@ def seed_business(
             example_questions=list(kind.questions),
         )
     return profiles
+
+
+# ---- directory and access (stage 7) -----------------------------------------------------------
+
+MANAGER = "manager"
+
+# Who is a manager, and which job titles see only their own rows of an object: (object, field)
+# means "rows where <field> is this person". Decided here, at sign-in, and carried in the token.
+ACCESS: dict[str, dict] = {
+    "fjord": {
+        "managers": {"Operations Manager", "Dispatch Lead"},
+        "scopes": {"Driver": [("ride", "driver")]},
+    },
+    "cinder": {
+        "managers": {"Partner", "Office Manager"},
+        "scopes": {
+            "Associate": [("matter", "lead_attorney"), ("time_entry", "attorney")],
+            "Paralegal": [("time_entry", "attorney")],
+        },
+    },
+    "gable": {
+        "managers": {"Practice Manager", "Dentist"},
+        "scopes": {
+            "Dentist": [("appointment", "dentist")],
+            "Hygienist": [("appointment", "dentist")],
+        },
+    },
+    "juniper": {"managers": {"Project Manager"}, "scopes": {}},
+    "acme": {"managers": {"Head Roaster", "Cafe Manager"}, "scopes": {}},
+}
+
+
+def roles_for(tenant_id: str, worker: dict) -> tuple[str, ...]:
+    """Roles for one person: `manager` and/or `own:<object>.<field>` row scopes."""
+    rules = ACCESS.get(tenant_id, {"managers": set(), "scopes": {}})
+    roles = [MANAGER] if worker.get("job_title") in rules["managers"] else []
+    roles += [f"own:{obj}.{fld}" for obj, fld in rules["scopes"].get(worker.get("job_title"), [])]
+    return tuple(sorted(roles))
+
+
+def directory(store: MetadataStore, tenant: SyntheticTenant) -> list[dict]:
+    """The company's people, as the demo identity provider shows them at sign-in."""
+    people = []
+    for w in store.list_records(tenant.context(subject="directory"), "worker"):
+        roles = roles_for(tenant.tenant_id, w)
+        people.append(
+            {
+                "id": w["id"],
+                "name": w["full_name"],
+                "title": w["job_title"],
+                "department": w["department"],
+                "roles": list(roles),
+            }
+        )
+    return sorted(people, key=lambda p: (MANAGER not in p["roles"], p["department"], p["name"]))

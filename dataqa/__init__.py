@@ -16,8 +16,10 @@ from dataqa.query import (
     execute,
     naive_dataqa_enabled,
     parse_query,
+    row_scope,
     schema_for,
     validate,
+    visible_records,
 )
 
 __all__ = [
@@ -34,7 +36,9 @@ __all__ = [
     "naive_dataqa_enabled",
     "parse_query",
     "render_schema",
+    "row_scope",
     "schema_for",
     "summarize",
     "validate",
+    "visible_records",
 ]

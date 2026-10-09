@@ -294,3 +294,92 @@ def test_dataqa_naive_mode_is_off_by_default(monkeypatch):
 def test_dataqa_naive_mode_needs_the_exact_env_value(monkeypatch, value):
     monkeypatch.setenv(NAIVE_ENV, value)
     assert naive_dataqa_enabled() is False
+
+
+# ---- stage 7: row scopes ----------------------------------------------------------------------
+
+
+def person(world, tid, title):
+    from core.business import roles_for
+
+    store, tenants = world
+    w = next(
+        w for w in store.list_records(tenants[tid].context(), "worker") if w["job_title"] == title
+    )
+    return w, TenantContext(tenant_id=tid, subject=w["id"], roles=frozenset(roles_for(tid, w)))
+
+
+def test_driver_sees_only_their_own_rides(world):
+    store, tenants = world
+    driver, dctx = person(world, "fjord", "Driver")
+    own = [
+        r
+        for r in store.list_records(tenants["fjord"].context(), "ride")
+        if r["driver"] == driver["id"]
+    ]
+    res = execute(
+        store, dctx, parse_query({"object": "ride", "select": ["driver", "fare"], "limit": 100})
+    )
+    assert res.matched == len(own) > 0
+    assert {r["driver"] for r in res.rows} == {driver["full_name"]}
+
+
+def test_aggregates_cover_only_in_scope_rows(world):
+    store, tenants = world
+    driver, dctx = person(world, "fjord", "Driver")
+    own = sum(
+        1
+        for r in store.list_records(tenants["fjord"].context(), "ride")
+        if r["driver"] == driver["id"]
+    )
+    res = execute(store, dctx, parse_query({"object": "ride", "aggregate": {"fn": "count"}}))
+    assert res.rows == [{"value": own}] and own < 220
+    other = execute(
+        store,
+        dctx,
+        parse_query(
+            {
+                "object": "ride",
+                "where": [{"field": "driver", "op": "!=", "value": driver["full_name"]}],
+                "aggregate": {"fn": "count"},
+            }
+        ),
+    )
+    assert other.rows == [{"value": 0}]
+
+
+def test_managers_and_unscoped_titles_see_everything(world):
+    store, _ = world
+    _, mctx = person(world, "fjord", "Operations Manager")
+    _, dispatcher = person(world, "fjord", "Dispatcher")
+    for ctx_ in (mctx, dispatcher):
+        res = execute(store, ctx_, parse_query({"object": "ride", "aggregate": {"fn": "count"}}))
+        assert res.rows == [{"value": 220}]
+
+
+def test_schema_counts_and_marks_scoped_objects(world):
+    store, tenants = world
+    driver, dctx = person(world, "fjord", "Driver")
+    ride = next(o for o in schema_for(store, dctx) if o["name"] == "ride")
+    own = sum(
+        1
+        for r in store.list_records(tenants["fjord"].context(), "ride")
+        if r["driver"] == driver["id"]
+    )
+    assert ride["records"] == own and ride["scope"] == "driver"
+
+
+def test_scopes_apply_per_object(world):
+    store, _ = world
+    _, actx = person(world, "cinder", "Associate")
+    _, partner = person(world, "cinder", "Partner")
+    for obj in ("matter", "time_entry"):
+        mine = execute(
+            store, actx, parse_query({"object": obj, "aggregate": {"fn": "count"}})
+        ).rows[0]["value"]
+        everyone = execute(
+            store, partner, parse_query({"object": obj, "aggregate": {"fn": "count"}})
+        ).rows[0]["value"]
+        assert mine < everyone
+    clients = execute(store, actx, parse_query({"object": "client", "aggregate": {"fn": "count"}}))
+    assert clients.rows == [{"value": 30}]  # no scope on clients

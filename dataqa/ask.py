@@ -107,7 +107,8 @@ def render_schema(store: MetadataStore, ctx: TenantContext) -> str:
         "Objects:",
     ]
     for obj in schema_for(store, ctx):
-        lines.append(f"- {obj['name']} ({obj['records']} records)")
+        scope = f"; only rows where {obj['scope']} is this user" if obj.get("scope") else ""
+        lines.append(f"- {obj['name']} ({obj['records']} records{scope})")
         for f in obj["fields"]:
             kind = f"reference to {f['reference_to']}" if f["reference_to"] else f["type"]
             mark = "" if f["readable"] else "  [restricted (managers only)]"

@@ -7,8 +7,9 @@ Invariants:
   has hidden do not exist. Restricted fields are rejected in every clause (select, where, group_by,
   aggregate, order_by) unless the caller's token carries the `manager` role, because filtering,
   sorting or averaging on a value leaks it as surely as selecting it.
-- Records are read only through `store.list_records(ctx, ...)`, so only the caller's tenant is
-  scanned; reference values are resolved within that tenant.
+- Records are read only through `visible_records`, which reads the caller's tenant and then applies
+  the caller's row scopes (`own:<object>.<field>` roles from the signed token) before anything else,
+  so filters, counts and averages only ever see in-scope rows. References resolve within the tenant.
 """
 
 from __future__ import annotations
@@ -133,6 +134,22 @@ def _view(store: MetadataStore, ctx: TenantContext, name: str) -> _View | None:
     if obj is None:
         return None
     return _View(obj, {f.name: f for f in obj.fields})
+
+
+def row_scope(ctx: TenantContext, object_name: str) -> list[str]:
+    """Fields that must equal the caller's worker ID for a row of `object_name` to be visible."""
+    prefix = f"own:{object_name}."
+    return sorted(r[len(prefix) :] for r in ctx.roles if r.startswith(prefix))
+
+
+def visible_records(
+    store: MetadataStore, ctx: TenantContext, object_name: str, *, naive: bool = False
+) -> list[dict]:
+    records = store.list_records(ctx, object_name)
+    scope = [] if naive else row_scope(ctx, object_name)
+    if not scope:
+        return records
+    return [r for r in records if any(r.get(f) == ctx.subject for f in scope)]
 
 
 def _display_field(view: _View) -> str | None:
@@ -271,7 +288,7 @@ def execute(
         raise QueryError("; ".join(errors))
     view = _view(store, ctx, q.object)
     assert view is not None  # validated above
-    records = store.list_records(ctx, q.object)
+    records = visible_records(store, ctx, q.object, naive=naive)
 
     # Reference fields show the referenced record's display value, looked up in this tenant only.
     display: dict[str, dict[str, str]] = {}
@@ -346,14 +363,15 @@ def schema_for(store: MetadataStore, ctx: TenantContext) -> list[dict]:
     out = []
     for name in store.list_objects(ctx):
         view = _view(store, ctx, name)
-        count = store.count_records(ctx, name)
-        if view is None or count == 0:
+        if view is None or store.count_records(ctx, name) == 0:
             continue
+        scope = row_scope(ctx, name)
         out.append(
             {
                 "name": name,
                 "label": view.obj.label,
-                "records": count,
+                "records": len(visible_records(store, ctx, name)),
+                "scope": ", ".join(scope) or None,
                 "fields": [
                     {
                         "name": f.name,

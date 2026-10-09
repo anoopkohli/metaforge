@@ -48,6 +48,7 @@ include = [
     "chaos*",
     "attacks*",
     "web*",
+    "dataqa*",
 ]
 
 [tool.setuptools.package-data]

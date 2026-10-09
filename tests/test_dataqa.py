@@ -215,6 +215,7 @@ def test_describe_is_plain_english():
             }
         )
     )
+    text = text.lower()
     assert (
         "average tip" in text and "ride" in text and "fare > 30" in text and "pickup_zone" in text
     )

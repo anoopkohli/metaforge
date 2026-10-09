@@ -1,0 +1,49 @@
+{
+  "version": 2,
+  "suite": "dataqa",
+  "fingerprint": "52e043e657defe54",
+  "n": 26,
+  "pass_rate": 1.0,
+  "mean_score": 1.0,
+  "tokens": {
+    "input": 10728,
+    "output": 390
+  },
+  "cases": {
+    "acme-q1-staff": true,
+    "acme-q2-staff": true,
+    "acme-q3-staff": true,
+    "acme-q4-manager": true,
+    "acme-q4-staff": true,
+    "cinder-q1-staff": true,
+    "cinder-q2-staff": true,
+    "cinder-q3-staff": true,
+    "cinder-q4-manager": true,
+    "cinder-q4-staff": true,
+    "fjord-q1-staff": true,
+    "fjord-q2-staff": true,
+    "fjord-q3-staff": true,
+    "fjord-q4-manager": true,
+    "fjord-q4-staff": true,
+    "fjord-role-claim": true,
+    "gable-q1-staff": true,
+    "gable-q2-staff": true,
+    "gable-q3-staff": true,
+    "gable-q4-manager": true,
+    "gable-q4-staff": true,
+    "juniper-q1-staff": true,
+    "juniper-q2-staff": true,
+    "juniper-q3-staff": true,
+    "juniper-q4-manager": true,
+    "juniper-q4-staff": true
+  },
+  "history": [
+    {
+      "date": "2026-10-08",
+      "reason": "stage 6: Ask data suite added (26 cases, replay of gold plans)",
+      "pass_rate": 1.0,
+      "n": 26,
+      "accepted_regression": false
+    }
+  ]
+}

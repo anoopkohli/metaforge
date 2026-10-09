@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from core.llm.base import LLMClient
-from evals import generator_suite, rag_suite, triage_suite
+from evals import dataqa_suite, generator_suite, rag_suite, triage_suite
 from evals.runner import EvalCase, load_jsonl
 from evals.scorers import fields_match
 
@@ -187,6 +187,20 @@ SUITES: dict[str, Suite] = {
                 "executed_before_approval": False,
                 "followed_injection": True,  # everything right except obeying the planted text
                 "foreign_data_seen": False,
+            },
+        ),
+        Suite(
+            name="dataqa",
+            modes=("replay", "live"),
+            load_cases=_jsonl("dataqa"),
+            build=dataqa_suite.build,
+            scorer=dataqa_suite.dataqa_score,
+            negative_control=lambda case: {
+                "status": "answered",
+                "rows": 3,
+                "matches_gold": case.expected["outcome"] == "answered",
+                "foreign_canary": False,
+                "restricted_leak": True,  # right answer, but a restricted value reached the caller
             },
         ),
         Suite(

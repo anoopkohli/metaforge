@@ -4,6 +4,21 @@ A synthetic, multi-tenant, metadata-driven platform used as a testbed for AI eng
 generation, tool use (MCP), multi-tenant RAG, evals, and incident triage. Built in stages with AI coding tools,
 with tests and a threat model written first so the AI-generated code is checked rather than trusted.
 
+## In short
+
+I built a multi-tenant app with five AI features (generation, tool use, document Q&A, an
+incident-triage agent, and an eval system) and treated the AI as untrusted throughout. For each feature
+I wrote the threats down first, then attacks that try to leak one tenant's data to another or make the
+AI take actions it shouldn't, including with a model that obeys every injected instruction. The code
+blocks all of them, the same attacks succeed against a deliberately unsafe version, and a CI gate
+re-checks it all on every change.
+
+**What that does and does not claim.** Every attack written so far is blocked, and each is shown to
+detect a real failure; that is strong evidence, not a guarantee against attacks not yet written. This
+is a testbed: synthetic data, a demo login instead of a real identity provider, Postgres row-level
+security on RAG documents only (the core metadata store is SQLite), and no run against a live model
+yet (offline runs use recorded or scripted stand-ins).
+
 > Personal project. Uses synthetic data only and shares no code, schemas or designs with any employer.
 
 ## Stages

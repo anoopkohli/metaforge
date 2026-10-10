@@ -135,6 +135,25 @@ TriageTools(ctx-scoped) ◄── JSON action ── LLMClient ◄── <observ
 - **The planner never sees data.** It gets the schema and the question; only the validated result rows
   reach the (optional) answer model.
 
+## Stage 7 assistant, row access, audit
+
+```
+sign in (company + person) ─► directory ─► roles: manager, own:<object>.<field> ─► signed token
+question ─► run_assistant (≤ 8 steps) ─► AssistantTools(ctx) ─┬─ search_documents  (RagService, tenant)
+                                                              ├─ list_data / query_data (dataqa: row scope,
+                                                              │                         restricted fields)
+                                                              └─ propose_* ─► Proposal (waits) ─► user approves
+every call, denial, proposal, approval ─► AuditLog (per tenant, hash chain) ─► managers read / verify
+```
+
+- **Policy at sign-in, enforcement everywhere.** Roles and row scopes are decided once, from the
+  directory, and carried in the signed token. `dataqa.visible_records` applies scopes before any
+  filter or aggregate; the assistant's update checks use the same function.
+- **The assistant is the user, not a super-user.** Its tools take the user's context and have no
+  identity arguments, so there is nothing for a prompt injection to escalate to.
+- **Approve re-checks with the approver's rights,** because the approver may not be the proposer.
+- **Tamper-evident, not tamper-proof.** The audit chain detects edits; external anchoring is future work.
+
 ## Decisions
 
 1. **Explicit `TenantContext` on every store call.** The context comes from `verify_token`, never from

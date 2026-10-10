@@ -20,26 +20,26 @@
       <span id="mode-badge" class="badge"></span>
       <label class="tenant-label" for="tenant-select">Company</label>
       <select id="tenant-select" aria-label="Log in as company"></select>
-      <select id="role-select" aria-label="Role">
-        <option value="staff">staff</option>
-        <option value="manager">manager</option>
-      </select>
+      <label class="tenant-label" for="person-select">Sign in as</label>
+      <select id="person-select" aria-label="Sign in as"></select>
       <button id="login-btn" class="btn btn-primary">Log in</button>
     </div>
   </header>
 
   <nav class="tabs" role="tablist">
     <button class="tab active" data-tab="overview" role="tab">Overview</button>
+    <button class="tab" data-tab="assistant" role="tab">Assistant <span class="stage">7</span></button>
     <button class="tab" data-tab="data" role="tab">Data model <span class="stage">1–2</span></button>
     <button class="tab" data-tab="docs" role="tab">Ask documents <span class="stage">3</span></button>
     <button class="tab" data-tab="ask-data" role="tab">Ask data <span class="stage">6</span></button>
     <button class="tab" data-tab="incident" role="tab">Incident <span class="stage">5</span></button>
     <button class="tab" data-tab="lab" role="tab">Security lab</button>
     <button class="tab" data-tab="evals" role="tab">Evals <span class="stage">4</span></button>
+    <button class="tab" data-tab="audit" role="tab">Audit log <span class="stage">7</span></button>
   </nav>
 
   <main>
-    <div id="login-hint" class="hint hidden">Pick a company above and log in to use this tab.</div>
+    <div id="login-hint" class="hint hidden">Pick a company and a person above, then sign in to use this tab.</div>
 
     <!-- Overview -->
     <section id="tab-overview" class="panel active">
@@ -93,13 +93,43 @@
       <div class="explain">
         <h3>Try this</h3>
         <ol>
-          <li>Log in as <strong>fjord</strong> and open <em>Ask documents</em>. Ask about the expense limit.</li>
+          <li>Sign in as a <strong>Driver</strong> at fjord and open the <em>Assistant</em>. Ask about your own rides: you only ever see yours.</li>
+          <li>Sign in as the <strong>Receptionist</strong> at gable and ask the Assistant to mark an appointment completed. Approve it.</li>
+          <li>Sign in as a <strong>manager</strong> and open the <em>Audit log</em>: every question, step and approval is there. Verify the chain.</li>
+          <li>Sign in at <strong>fjord</strong> and open <em>Ask documents</em>. Ask about the expense limit.</li>
           <li>Switch to <strong>cinder</strong> and ask the same question. Different company, different answer.</li>
-          <li>In <em>Ask data</em>, ask about average salaries as <strong>staff</strong>, then log in again as <strong>manager</strong>.</li>
+          <li>In <em>Ask data</em>, ask about average salaries as staff, then sign in as a manager.</li>
           <li>In <em>Incident</em>, start a <em>queue backlog</em> with the malicious instruction ticked, and run the <em>Fooled AI</em>. Watch its injected moves bounce off.</li>
           <li>In the <em>Security lab</em>, run a suite and compare the secure and unsafe columns.</li>
         </ol>
         <p class="muted">Everything here runs on this computer with synthetic data. Without an API key, the AI is a recorded or scripted stand-in; with one, it is Claude.</p>
+      </div>
+    </section>
+
+    <!-- Assistant -->
+    <section id="tab-assistant" class="panel">
+      <div class="explain">
+        <h3>What you are looking at</h3>
+        <p>
+          One assistant for everything: it can search your company's documents, query its data
+          (several queries if needed), and <strong>propose</strong> changes. It works as
+          <em>you</em>: it sees only what you can see (a driver sees only their own rides; staff never
+          see restricted fields), and anything it proposes waits for you to approve. Every question and
+          step is written to the audit log.
+        </p>
+        <p id="who-am-i" class="muted small"></p>
+      </div>
+      <div class="box">
+        <div class="row">
+          <input id="asst-question" type="text" maxlength="1000" placeholder="Ask about your documents or data">
+          <button id="asst-ask-btn" class="btn btn-primary">Ask</button>
+        </div>
+        <div id="asst-examples" class="chips"></div>
+        <div id="asst-result"></div>
+      </div>
+      <div class="box">
+        <h3>Proposed changes</h3>
+        <div id="asst-proposals"></div>
       </div>
     </section>
 
@@ -267,6 +297,7 @@
           <button class="btn lab-btn" data-suite="rag">Documents (RAG) · 12</button>
           <button class="btn lab-btn" data-suite="triage">Incident agent · 8</button>
           <button class="btn lab-btn" data-suite="dataqa">Ask data · 9</button>
+          <button class="btn lab-btn" data-suite="assistant">Assistant · 11</button>
           <span id="lab-status" class="muted"></span>
         </div>
         <div id="lab-result"></div>
@@ -287,6 +318,27 @@
       <div class="box">
         <div class="row"><button id="evals-btn" class="btn btn-primary">Run all offline evals</button><span id="evals-status" class="muted"></span></div>
         <div id="evals-result"></div>
+      </div>
+    </section>
+    <!-- Audit -->
+    <section id="tab-audit" class="panel">
+      <div class="explain">
+        <h3>What you are looking at</h3>
+        <p>
+          Every sign-in, question, assistant step, denial, proposal and approval in your company, newest
+          first. Each entry contains a fingerprint (hash) of the one before it, so if anyone edits,
+          deletes or reorders an entry, <strong>Verify</strong> finds the first broken one. Entries
+          record what happened and to which object, never the values of restricted fields. Managers
+          only.
+        </p>
+      </div>
+      <div class="box">
+        <div class="row wrap">
+          <button id="audit-refresh" class="btn">Refresh</button>
+          <button id="audit-verify" class="btn btn-primary">Verify the chain</button>
+          <span id="audit-status" class="muted"></span>
+        </div>
+        <div id="audit-result"></div>
       </div>
     </section>
   </main>

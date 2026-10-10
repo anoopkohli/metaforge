@@ -6,8 +6,8 @@ with tests and a threat model written first so the AI-generated code is checked 
 
 ## In short
 
-I built a multi-tenant app with six AI features (generation, tool use, document Q&A, questions
-over business records, an incident-triage agent, and an eval system) and treated the AI as untrusted throughout. For each feature
+I built a multi-tenant app with seven AI features (generation, tool use, document Q&A, questions
+over business records, a unified assistant, an incident-triage agent, and an eval system) and treated the AI as untrusted throughout. For each feature
 I wrote the threats down first, then attacks that try to leak one tenant's data to another or make the
 AI take actions it shouldn't, including with a model that obeys every injected instruction. The code
 blocks all of them, the same attacks succeed against a deliberately unsafe version, and a CI gate
@@ -33,6 +33,7 @@ Each stage is a git tag and is useful on its own.
 | 3 | `rag/` + `attacks/`: multi-tenant RAG, pooled (Postgres + RLS) vs siloed isolation, 12 attacks × 6 configurations | done (`stage-3`) |
 | 4 | `evals/`: per-case regression gate, dataset fingerprints, reasoned baseline updates, token/cost tracking, injection-hardened LLM judge | done (`stage-4`) |
 | 5 | `chaos/` + `triage/`: three simulated faults, one tenant-scoped triage agent loop, injection attacks with a fully obedient model | done (`stage-5`) |
+| 7 | `assistant/` + `core/audit.py`: one assistant over documents, data and changes; sign-in as a person; row-level access; hash-chained audit log | done (`stage-7`) |
 | 6 | `core/business.py` + `dataqa/`: five synthetic businesses, staff/manager roles, restricted fields, Ask data (validated JSON queries, never SQL) | done (`stage-6`) |
 
 ## Try it in a browser
@@ -172,6 +173,15 @@ to managers. Ask data turns a question into a small JSON query the server valida
 company's schema and the caller's role, in every clause: staff cannot select, filter, average or sort
 by a salary. Details: [`docs/results-stage-6.md`](docs/results-stage-6.md).
 
+## Stage 7: the assistant, row-level access and the audit log
+
+Sign in as a person from a company's directory; their roles come from the directory. Some jobs see
+only their own rows (a driver's own rides, a hygienist's own appointments), in lists, counts and
+averages alike. One assistant searches documents, runs as many data queries as it needs, and proposes
+record or schema changes, always as the signed-in person; nothing changes until they approve. Every
+sign-in, question, step, denial, proposal and approval goes to a per-company, hash-chained audit log
+that managers can read and verify. Details: [`docs/results-stage-7.md`](docs/results-stage-7.md).
+
 ## Docs
 
 - [`CLAUDE.md`](CLAUDE.md): standing rules for the AI coding tools working in this repo
@@ -183,4 +193,5 @@ by a salary. Details: [`docs/results-stage-6.md`](docs/results-stage-6.md).
 - [`docs/results-stage-4.md`](docs/results-stage-4.md): stage 4 eval gate
 - [`docs/results-stage-5.md`](docs/results-stage-5.md): stage 5 triage attacks and eval
 - [`docs/results-stage-6.md`](docs/results-stage-6.md): stage 6 Ask data attacks and eval
+- [`docs/results-stage-7.md`](docs/results-stage-7.md): stage 7 assistant, row access and audit
 - [`docs/ai-assist-log.md`](docs/ai-assist-log.md): where AI-generated code was wrong and what caught it

@@ -14,6 +14,24 @@ This is part of the project: the point is to show how the tools were directed an
 
 ## Entries
 
+- 2026-10-09 · stage 7 · **Missing test for re-checking at approval.** The mutation "approval does not
+  re-check" survived: every test approved as the same person who proposed. Fix:
+  `test_approval_rechecks_the_approvers_rights` (a manager proposes a salary change; staff cannot
+  approve it). Now caught.
+- 2026-10-09 · stage 7 · **A failing run got committed.** A command chain checked the exit code of
+  `pytest ... | tail -1` (tail's, always 0) instead of pytest's, so a run with 53 failures (local
+  Postgres had stopped; `METAFORGE_REQUIRE_PG=1` correctly failed them) still committed. The code was
+  fine, but the habit was wrong. Fix: `set -o pipefail` and print pytest's own exit code.
+- 2026-10-09 · web UI · **"null" on screen, and a self-inflicted recursion.** The assistant view passed
+  a conditional `null` to `replaceChildren`, which prints it. The same pattern existed in the data
+  model view. Fixing it with a regex rewrite to a `setKids` helper also rewrote the helper's own body
+  into a call to itself; caught by reading the helper before reloading the page. A test now allows
+  `replaceChildren` with arguments only inside `setKids`.
+- 2026-10-09 · web UI · **CSP blocked inline styles all along.** The strict CSP (no `unsafe-inline`)
+  blocked `el()`'s `setAttribute("style", ...)`, so a few spacing and bar-width styles never applied
+  since the UI was built. Found from a console error during the stage 7 walkthrough. Fix: set styles
+  through the CSSOM (`node.style.cssText`), which the CSP permits; the policy stays strict.
+
 - 2026-10-09 · web UI · **Tenant data left on screen after switching company (reported by the user).**
   Changing the company or role re-logged in but did not clear what was already rendered, so the
   previous company's Ask data answer (or a manager's salary table, after dropping to staff) stayed

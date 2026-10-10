@@ -466,3 +466,15 @@ def test_audit_holds_no_salary_values(client):
     ).json()["result"]["rows"]
     text = json.dumps(client.get("/api/audit").json())
     assert rows and not any(json.dumps(r["salary"]) in text for r in rows)
+
+
+def test_front_end_renders_children_only_through_helpers():
+    """Direct replaceChildren(...) prints null as "null" and does not flatten arrays (two real
+    bugs); only the empty clear and the setKids helper itself may call it."""
+    import re
+
+    js = (Path(__file__).parent.parent / "web" / "static" / "app.js").read_text()
+    calls = re.findall(r"\.replaceChildren\(([^)]?)", js)
+    with_args = [c for c in calls if c != ""]
+    assert with_args == ["."], with_args  # the one call inside setKids: (...children
+    assert "function setKids(node, ...children)" in js

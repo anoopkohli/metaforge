@@ -1,23 +1,75 @@
 # metaforge
 
-A synthetic, multi-tenant, metadata-driven platform used as a testbed for AI engineering: structured
-generation, tool use (MCP), multi-tenant RAG, evals, and incident triage. Built in stages with AI coding tools,
-with tests and a threat model written first so the AI-generated code is checked rather than trusted.
+[![ci](https://github.com/anoopkohli/metaforge/actions/workflows/ci.yml/badge.svg)](https://github.com/anoopkohli/metaforge/actions/workflows/ci.yml)
 
-## In short
+**A multi-tenant app with seven AI features, built with AI coding tools, where the AI is treated as
+untrusted: both the AI inside the app and the AI that wrote the code.**
 
-I built a multi-tenant app with seven AI features (generation, tool use, document Q&A, questions
-over business records, a unified assistant, an incident-triage agent, and an eval system) and treated the AI as untrusted throughout. For each feature
-I wrote the threats down first, then attacks that try to leak one tenant's data to another or make the
-AI take actions it shouldn't, including with a model that obeys every injected instruction. The code
-blocks all of them, the same attacks succeed against a deliberately unsafe version, and a CI gate
-re-checks it all on every change.
+Each company's data must never reach another company, a driver must never see another driver's rides,
+and no AI, however badly it is fooled, may act beyond the signed-in person's rights or without their
+approval. Every one of those claims is an attack in the repo that runs on every push.
 
-**What that does and does not claim.** Every attack written so far is blocked, and each is shown to
-detect a real failure; that is strong evidence, not a guarantee against attacks not yet written. This
-is a testbed: synthetic data, a demo login instead of a real identity provider, Postgres row-level
-security on RAG documents only (the core metadata store is SQLite), and no run against a live model
-yet (offline runs use recorded or scripted stand-ins).
+| | |
+|---|---|
+| ![A driver asks the assistant about their rides and sees only their own](docs/images/1-assistant-driver.png) | ![A dispatcher asks for average salaries and is denied](docs/images/2-ask-data-denied.png) |
+| A driver asks the assistant: it sees only their 21 rides. | Staff ask for salaries: denied in every clause, not only the select. |
+| ![An AI fooled by a planted log line proposes scaling to 5,000 workers and is blocked](docs/images/3-fooled-ai-blocked.png) | ![The audit log with its hash chain verified](docs/images/4-audit-verify.png) |
+| An AI that obeys a planted instruction: out-of-policy fix blocked, smuggled tenant ignored. | Every step is in a hash-chained audit log; Verify finds edits. |
+
+## In numbers
+
+- **53 attacks** across tool use (MCP), document Q&A (RAG), an incident agent, data questions and the
+  assistant. All blocked in the secure code; the same attacks succeed against a deliberately unsafe
+  build, which proves each attack can actually detect a failure.
+- **552 offline tests**, plus Postgres row-level-security tests that CI runs against a real database.
+- **8 eval suites** behind a per-case regression gate (a judge-calibration set among them) that also
+  fails on prompt growth and on datasets edited without a reasoned baseline update.
+- **About 65 safeguard-removal (mutation) checks:** a safeguard was deleted on a scratch copy to confirm
+  some test fails. Where none did, a test was added; those cases are in the log below.
+- **35 logged AI mistakes** in [`docs/ai-assist-log.md`](docs/ai-assist-log.md).
+
+## How it was built with AI
+
+I directed AI coding tools (Claude Code) under standing rules in [`CLAUDE.md`](CLAUDE.md): write the
+threat model before each stage, write the attack or eval before the code, keep a naive mode that the
+attacks must break, and log every time the AI's code was wrong. A sample of what that log caught:
+
+- **A UI tenant leak.** After switching companies, the previous company's answer stayed on screen.
+  Found by using the app; every tenant view is now cleared on a switch, with a test.
+- **Tests that could not fail.** Mutation checks found attacks that passed even with the safeguard
+  removed, and a missing test for re-checking the approver's rights at approval time.
+- **A failing run committed as green.** A command checked `tail`'s exit code instead of pytest's.
+
+Three lessons from doing it this way:
+
+1. **The AI writes plausible tests that cannot fail.** Deleting the safeguard and watching a test go
+   red is the only way I found to know.
+2. **The tenant must never come from anything the model can touch.** It comes from the signed token
+   alone; tenant arguments in tool calls are ignored, and every layer re-checks.
+3. **Show the attack failing first.** An unsafe mode that the attacks visibly break is what makes
+   "blocked" mean something.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  U[Browser / MCP client] -->|signed token| A[Auth: TenantContext + person + roles]
+  A --> F[AI features: generator, MCP tools, RAG, Ask data, assistant, triage agent]
+  F -->|all model calls| L[LLMClient: budget, tracing, validated output]
+  F -->|context passed explicitly| S[(Stores: SQLite metadata + business data,<br/>Postgres + pgvector with forced RLS)]
+  F --> G[Output guard: canaries, restricted fields, row scope]
+  F --> AU[(Audit log: per-tenant hash chain)]
+  F -.->|proposals only| H[Human approval, re-checked with the approver's rights]
+```
+
+## Honest limits
+
+- A testbed with synthetic data and a demo person-picker instead of a real identity provider.
+- Postgres row-level security covers RAG documents; the core metadata store is SQLite.
+- **Not yet run against a live model.** Offline runs use recorded or scripted stand-ins; the live,
+  budget-capped run is wired up (`make evals-live`) but its numbers are not in yet.
+- Every attack written so far is blocked. That is strong evidence, not a guarantee against attacks not
+  yet written.
 
 > Personal project. Uses synthetic data only and shares no code, schemas or designs with any employer.
 
@@ -25,16 +77,16 @@ yet (offline runs use recorded or scripted stand-ins).
 
 Each stage is a git tag and is useful on its own.
 
-| Stage | What | Status |
+| Stage | What | Results |
 |---|---|---|
-| 0 | Core: tenant store, token auth, `TenantContext`, LLM adapter, tracing, synthetic data, thin eval runner | done (`stage-0`) |
-| 1 | `generator/`: natural language to a validated, tenant-scoped metadata proposal; repair loop; golden-set evals (replay + live) | done (`stage-1`) |
-| 2 | `mcp_server/` + `attacks/`: tenant-scoped MCP tools, human-confirmed writes, 13-attack suite (secure vs naive) | done (`stage-2`) |
-| 3 | `rag/` + `attacks/`: multi-tenant RAG, pooled (Postgres + RLS) vs siloed isolation, 12 attacks × 6 configurations | done (`stage-3`) |
-| 4 | `evals/`: per-case regression gate, dataset fingerprints, reasoned baseline updates, token/cost tracking, injection-hardened LLM judge | done (`stage-4`) |
-| 5 | `chaos/` + `triage/`: three simulated faults, one tenant-scoped triage agent loop, injection attacks with a fully obedient model | done (`stage-5`) |
-| 7 | `assistant/` + `core/audit.py`: one assistant over documents, data and changes; sign-in as a person; row-level access; hash-chained audit log | done (`stage-7`) |
-| 6 | `core/business.py` + `dataqa/`: five synthetic businesses, staff/manager roles, restricted fields, Ask data (validated JSON queries, never SQL) | done (`stage-6`) |
+| 0 | Core: tenant store, token auth, `TenantContext`, LLM adapter, tracing, synthetic data, thin eval runner | `stage-0` |
+| 1 | `generator/`: natural language to a validated, tenant-scoped metadata proposal; repair loop; golden-set evals | [stage 1](docs/results-stage-1.md) |
+| 2 | `mcp_server/` + `attacks/`: tenant-scoped MCP tools, human-confirmed writes, 13 attacks | [stage 2](docs/results-stage-2.md) |
+| 3 | `rag/`: multi-tenant RAG, pooled (Postgres + RLS) vs siloed isolation, 12 attacks × 6 configurations | [stage 3](docs/results-stage-3.md) |
+| 4 | `evals/`: per-case regression gate, dataset fingerprints, reasoned baseline updates, cost tracking, LLM judge | [stage 4](docs/results-stage-4.md) |
+| 5 | `chaos/` + `triage/`: three simulated faults, one triage agent loop, injection attacks with a fully obedient model | [stage 5](docs/results-stage-5.md) |
+| 6 | `core/business.py` + `dataqa/`: five synthetic businesses, roles, restricted fields, Ask data (JSON queries, never SQL) | [stage 6](docs/results-stage-6.md) |
+| 7 | `assistant/` + `core/audit.py`: one assistant, sign-in as a person, row-level access, hash-chained audit log | [stage 7](docs/results-stage-7.md) |
 
 ## Try it in a browser
 
@@ -43,16 +95,18 @@ make install
 make ui        # http://127.0.0.1:8765
 ```
 
-A local web app over all five stages: log in as one of five synthetic companies, draft a data change
+A local web app over every stage: log in as one of five synthetic companies, draft a data change
 with AI and approve it, ask the company's documents, break the simulated platform and watch an AI
 triage it (including one that obeys planted instructions), run every attack in secure vs unsafe mode,
 and run the eval gate. It works offline with stand-in models; set `ANTHROPIC_API_KEY` first to use
 Claude (budget-capped by `METAFORGE_UI_BUDGET_USD`, default $2). `make pg-up` first adds the Postgres
 row-level-security configurations to the security lab.
 
+![The security lab: each attack blocked in the secure code and succeeding in the unsafe build](docs/images/5-security-lab.png)
+
 The UI is held to the same standard as the rest: tenant from a signed `HttpOnly`/`SameSite=Strict`
 cookie only, CSRF header checks, strict CSP with no inline script, all data rendered as text,
-localhost only, and unsafe mode confined to a child process (threat model entries W.1-W.10).
+localhost only, and unsafe mode confined to a child process (threat model entries W.1-W.11).
 
 ## Quick start
 
@@ -195,3 +249,4 @@ that managers can read and verify. Details: [`docs/results-stage-7.md`](docs/res
 - [`docs/results-stage-6.md`](docs/results-stage-6.md): stage 6 Ask data attacks and eval
 - [`docs/results-stage-7.md`](docs/results-stage-7.md): stage 7 assistant, row access and audit
 - [`docs/ai-assist-log.md`](docs/ai-assist-log.md): where AI-generated code was wrong and what caught it
+- [`docs/demo-script.md`](docs/demo-script.md): a 90-second walkthrough of the UI

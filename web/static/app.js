@@ -538,7 +538,8 @@ async function loadAudit() {
   }
   try {
     const { entries } = await api("/api/audit");
-    const detail = (d) => Object.entries(d).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`).join(" · ");
+    const detail = (d) => Object.entries(d).filter(([, v]) => v !== null && v !== undefined)
+      .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`).join(" · ");
     setKids($("audit-result"), el("div", { class: "table-wrap" },
       el("table", {},
         el("thead", {}, el("tr", {}, ["#", "When", "Who", "What", "Details", "Hash"].map((h) => el("th", { text: h })))),

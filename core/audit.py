@@ -121,7 +121,7 @@ class AuditLog:
 
     def append(self, ctx: TenantContext, action: str, detail: dict | None = None) -> AuditEntry:
         ctx = _require(ctx)
-        body = _check_detail(detail or {})
+        body = _check_detail({k: v for k, v in (detail or {}).items() if v is not None})
         with self._lock:
             row = self._db.execute(
                 "SELECT seq, hash FROM audit_log WHERE tenant_id = ? ORDER BY seq DESC LIMIT 1",

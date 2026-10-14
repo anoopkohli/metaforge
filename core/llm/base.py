@@ -6,6 +6,7 @@ provider SDK. Tests use `FakeLLM`, so the suite runs offline and deterministical
 
 from __future__ import annotations
 
+import json
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -81,3 +82,17 @@ class FakeLLM:
             latency_s=time.perf_counter() - start,
             model="fake",
         )
+
+
+def json_reply_error(raw: str, exc: json.JSONDecodeError) -> str:
+    """Feedback for a reply that should have been one JSON object, saying what was wrong with it."""
+    text = raw.lstrip()
+    if "{" not in text:
+        problem = "it was not valid JSON (no JSON object found)"
+    elif text[0] not in "{[":
+        problem = "there was text before the JSON object"
+    elif exc.msg == "Extra data":
+        problem = "there was text after the JSON object"
+    else:
+        problem = f"it was not valid JSON ({exc.msg})"
+    return f"{problem}; reply with only the JSON object, no text before or after it"

@@ -6,7 +6,7 @@
   "pass_rate": 1.0,
   "mean_score": 1.0,
   "tokens": {
-    "input": 22835,
+    "input": 24146,
     "output": 633
   },
   "cases": {
@@ -27,6 +27,13 @@
     {
       "date": "2026-10-08",
       "reason": "stage 5: triage suite added (reference policy, 12 scenarios)",
+      "pass_rate": 1.0,
+      "n": 12,
+      "accepted_regression": false
+    },
+    {
+      "date": "2026-10-14",
+      "reason": "Live runs 1-2: prompt says to finish once a fix is proposed and states the 500-character summary limit; next-to-last step says to finish (+5.7% input tokens over the stage-5 baseline)",
       "pass_rate": 1.0,
       "n": 12,
       "accepted_regression": false

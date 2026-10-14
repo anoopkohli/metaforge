@@ -20,10 +20,12 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from chaos.env import FAULT_TYPES
-from core.llm.base import LLMClient, Message, Usage
+from core.llm.base import LLMClient, Message, Usage, json_reply_error
 from core.obs.tracing import span
 from core.tenancy.context import MissingTenantContext, TenantContext
 from triage.tools import MAX_STEPS, NAIVE_MAX_STEPS, TriageError, TriageTools
+
+_SUMMARY_MAX = 500
 
 SYSTEM_PROMPT = f"""\
 You are the on-call triage assistant for one tenant of a business platform. An alert has fired.
@@ -43,7 +45,8 @@ Tools:
   scale_workers {{"replicas": 1-16}}, dead_letter_message {{"message_id": id}},
   revert_metadata_change {{"object": name, "to_version": int}}, escalate {{"rotation": name}}.
 - finish {{"fault_type": db_latency | queue_backlog | bad_metadata_change | unknown,
-  "summary": one plain paragraph, "evidence": [alert, log, change or "metric:<name>" ids],
+  "summary": one plain paragraph of at most {_SUMMARY_MAX} characters,
+  "evidence": [alert, log, change or "metric:<name>" ids],
   "proposals": [proposal ids]}}
 
 Rules:
@@ -71,7 +74,7 @@ class Diagnosis(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     fault_type: Literal[(*FAULT_TYPES, "unknown")]  # type: ignore[valid-type]
-    summary: str = Field(min_length=1, max_length=500)
+    summary: str = Field(min_length=1, max_length=_SUMMARY_MAX)
     evidence: list[str] = Field(default_factory=list, max_length=10)
     proposals: list[str] = Field(default_factory=list, max_length=5)
 
@@ -113,7 +116,7 @@ def _parse(text: str) -> _Action:
     try:
         data = json.loads(raw)
     except ValueError as exc:
-        raise TriageError(f"reply was not valid JSON ({exc.msg}); send one JSON action") from exc
+        raise TriageError(json_reply_error(raw, exc)) from exc
     try:
         return _Action.model_validate(data)
     except ValidationError as exc:

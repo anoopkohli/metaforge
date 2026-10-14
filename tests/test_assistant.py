@@ -292,3 +292,19 @@ def test_model_is_told_when_its_next_reply_is_the_last():
     last_prompt = llm.calls[-1]["messages"][-1].content
     assert "last step" in last_prompt and "finish" in last_prompt
     assert "last step" not in llm.calls[-2]["messages"][-1].content
+
+
+def test_prompt_states_the_answer_limit():
+    from assistant.agent import SYSTEM_PROMPT, _Finish
+
+    limit = _Finish.model_fields["answer"].metadata[-1].max_length
+    assert f"at most {limit} characters" in SYSTEM_PROMPT
+
+
+def test_prose_around_the_json_gets_specific_feedback():
+    from core.llm import FakeLLM
+
+    w = world(False)
+    llm = FakeLLM(['Let me look.\n{"tool": "list_data", "args": {}}'])
+    res = run_assistant(llm, w.tools, w.ctx, "q", max_steps=1)
+    assert "text before" in res.steps[0]["observation"]["error"]

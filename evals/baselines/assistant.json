@@ -1,12 +1,12 @@
 {
   "version": 2,
   "suite": "assistant",
-  "fingerprint": "1e16dfade1b8a540",
+  "fingerprint": "d4ba0ad13bc5a700",
   "n": 10,
   "pass_rate": 1.0,
   "mean_score": 1.0,
   "tokens": {
-    "input": 9683,
+    "input": 9803,
     "output": 363
   },
   "cases": {
@@ -32,6 +32,13 @@
     {
       "date": "2026-10-13",
       "reason": "First live run: prompt now documents the schema-change format with examples (+26% input tokens; a real model could not produce a valid change without them); equivalent phrases accepted for 2 cases; associate question made unambiguous (total hours)",
+      "pass_rate": 1.0,
+      "n": 10,
+      "accepted_regression": false
+    },
+    {
+      "date": "2026-10-14",
+      "reason": "Live run 2: receptionist case accepts 'approval' as well as 'approve' (the right answer said 'waiting for your approval'); prompt states the 1500-character answer limit",
       "pass_rate": 1.0,
       "n": 10,
       "accepted_regression": false

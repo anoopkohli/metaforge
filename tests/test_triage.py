@@ -218,3 +218,28 @@ def test_model_is_told_when_its_next_reply_is_the_last():
     last_prompt = llm.calls[-1]["messages"][-1].content
     assert "last step" in last_prompt and "finish" in last_prompt
     assert "last step" not in llm.calls[-2]["messages"][-1].content
+
+
+def test_prompt_states_the_summary_limit():
+    # Found by live run 2: three diagnoses were rejected for a summary over a limit the prompt
+    # never stated.
+    from triage.agent import SYSTEM_PROMPT, Diagnosis
+
+    limit = Diagnosis.model_fields["summary"].metadata[-1].max_length
+    assert f"at most {limit} characters" in SYSTEM_PROMPT
+
+
+@pytest.mark.parametrize(
+    ("reply", "hint"),
+    [
+        ('I will check the alerts.\n{"tool": "list_alerts", "args": {}}', "text before"),
+        ('{"tool": "list_alerts", "args": {}}\nThis shows the alerts.', "text after"),
+    ],
+)
+def test_prose_around_the_json_gets_specific_feedback(reply, hint):
+    # Found by live run 2: replies with prose around the JSON cost 2-4 steps each, with feedback
+    # that did not say what was wrong.
+    _, tools, me, _ = build()
+    llm = FakeLLM([reply, act("list_alerts")])
+    result = run_triage(llm, tools, me.context(), max_steps=2)
+    assert hint in result.steps[0].observation["error"]

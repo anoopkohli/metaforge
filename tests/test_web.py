@@ -37,7 +37,7 @@ def pick(c, tenant="fjord", role="staff", title=None):
 
 def login(c, tenant="fjord", role="staff", title=None):
     person = pick(c, tenant, role, title)
-    r = c.post("/api/login", json={"tenant_id": tenant, "worker_id": person["id"]}, headers=H)
+    r = c.post("/api/login", json={"tenant_id": tenant, "employee_id": person["id"]}, headers=H)
     assert r.status_code == 200, r.text
     return r
 
@@ -56,7 +56,7 @@ def test_login_sets_an_httponly_strict_cookie(client):
 
 def test_unknown_tenant_cannot_log_in(client):
     r = client.post(
-        "/api/login", json={"tenant_id": "nobody", "worker_id": "worker-0001"}, headers=H
+        "/api/login", json={"tenant_id": "nobody", "employee_id": "employee-0001"}, headers=H
     )
     assert r.status_code == 400
 
@@ -98,14 +98,14 @@ def test_session_never_exposes_secrets(client, monkeypatch):
 
 
 def test_post_without_csrf_header_is_rejected(client):
-    r = client.post("/api/login", json={"tenant_id": "fjord", "worker_id": "worker-0001"})
+    r = client.post("/api/login", json={"tenant_id": "fjord", "employee_id": "employee-0001"})
     assert r.status_code == 403
 
 
 def test_cross_origin_post_is_rejected(client):
     r = client.post(
         "/api/login",
-        json={"tenant_id": "fjord", "worker_id": "worker-0001"},
+        json={"tenant_id": "fjord", "employee_id": "employee-0001"},
         headers={**H, "Origin": "http://evil.example"},
     )
     assert r.status_code == 403
@@ -293,7 +293,7 @@ def test_role_cannot_be_sent_with_a_question(client):
 def test_schema_marks_restricted_fields_by_role(client):
     def salary_readable():
         objects = {o["name"]: o for o in client.get("/api/data/schema").json()["objects"]}
-        return next(f for f in objects["worker"]["fields"] if f["name"] == "salary")["readable"]
+        return next(f for f in objects["employee"]["fields"] if f["name"] == "salary")["readable"]
 
     login(client, role="staff")
     assert salary_readable() is False
@@ -330,7 +330,7 @@ def test_query_builder_runs_and_enforces_roles(client):
     assert ok.status_code == 200 and sum(r["value"] for r in ok.json()["result"]["rows"]) == 220
     denied = client.post(
         "/api/data/query",
-        json={"query": {"object": "worker", "aggregate": {"fn": "avg", "field": "salary"}}},
+        json={"query": {"object": "employee", "aggregate": {"fn": "avg", "field": "salary"}}},
         headers=H,
     )
     assert denied.status_code == 400 and "restricted" in denied.json()["error"]
@@ -340,10 +340,10 @@ def test_query_builder_runs_and_enforces_roles(client):
 
 def test_browse_records_hides_restricted_columns_from_staff(client):
     login(client, role="staff")
-    staff = client.get("/api/objects/worker/records").json()
+    staff = client.get("/api/objects/employee/records").json()
     assert "salary" not in staff["columns"] and staff["rows"]
     login(client, role="manager")
-    assert "salary" in client.get("/api/objects/worker/records").json()["columns"]
+    assert "salary" in client.get("/api/objects/employee/records").json()["columns"]
 
 
 def test_business_documents_are_searchable(client):
@@ -387,8 +387,8 @@ def test_directory_lists_people_without_sensitive_fields(client):
 
 
 @pytest.mark.parametrize("body", [
-    {"tenant_id": "fjord", "worker_id": "worker-0001", "role": "manager"},
-    {"tenant_id": "fjord", "worker_id": "worker-9999"},
+    {"tenant_id": "fjord", "employee_id": "employee-0001", "role": "manager"},
+    {"tenant_id": "fjord", "employee_id": "employee-9999"},
 ])  # fmt: skip
 def test_sign_in_needs_a_real_person_and_no_role(client, body):
     r = client.post("/api/login", json=body, headers=H)
@@ -444,7 +444,7 @@ def test_audit_is_for_managers_and_verifies(client):
     login(client, role="manager")
     client.post(
         "/api/data/query",
-        json={"query": {"object": "worker", "select": ["full_name", "salary"]}},
+        json={"query": {"object": "employee", "select": ["full_name", "salary"]}},
         headers=H,
     )
     entries = client.get("/api/audit").json()["entries"]
@@ -461,7 +461,7 @@ def test_audit_holds_no_salary_values(client):
     login(client, role="manager")
     rows = client.post(
         "/api/data/query",
-        json={"query": {"object": "worker", "select": ["salary"], "limit": 100}},
+        json={"query": {"object": "employee", "select": ["salary"], "limit": 100}},
         headers=H,
     ).json()["result"]["rows"]
     text = json.dumps(client.get("/api/audit").json())

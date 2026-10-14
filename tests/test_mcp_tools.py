@@ -38,13 +38,13 @@ def test_list_objects_shows_platform_and_own_objects(env):
     _, tools, me, other = env
     result = tools.call(me.context(), "list_objects", {})
     names = {o["name"]: o["kind"] for o in result["objects"]}
-    assert names["worker"] == "platform" and names[f"{me.tenant_id}_asset"] == "custom"
+    assert names["employee"] == "platform" and names[f"{me.tenant_id}_asset"] == "custom"
     assert f"{other.tenant_id}_asset" not in names
 
 
 def test_describe_returns_effective_schema(env):
     _, tools, me, _ = env
-    result = tools.call(me.context(), "describe_object", {"name": "worker"})
+    result = tools.call(me.context(), "describe_object", {"name": "employee"})
     names = [f["name"] for f in result["fields"]]
     assert "notes" not in names and "priority" in names  # fjord hid notes, added priority
     labels = {f["name"]: f["label"] for f in result["fields"]}
@@ -64,7 +64,7 @@ def test_not_found_message_is_identical_for_foreign_and_missing(env):
 
 def test_results_are_structured_json(env):
     _, tools, me, _ = env
-    for name, args in [("list_objects", {}), ("describe_object", {"name": "worker"})]:
+    for name, args in [("list_objects", {}), ("describe_object", {"name": "employee"})]:
         result = tools.call(me.context(), name, args)
         assert json.loads(json.dumps(result)) == result
 
@@ -86,7 +86,7 @@ def test_tenant_args_are_ignored_and_audited(env, key):
     "name,args",
     [
         ("list_objects", {"limit": 5}),
-        ("describe_object", {"name": "worker", "include_hidden": True}),
+        ("describe_object", {"name": "employee", "include_hidden": True}),
         ("describe_object", {"name": 5}),
         ("describe_object", {}),
         ("propose_change", {"proposal": VEHICLE, "apply_now": True}),
@@ -123,7 +123,7 @@ def test_propose_does_not_write(env):
 
 def test_propose_reports_validation_errors_without_parking(env):
     _, tools, me, _ = env
-    bad = {**VEHICLE, "object": {**VEHICLE["object"], "name": "worker"}}
+    bad = {**VEHICLE, "object": {**VEHICLE["object"], "name": "employee"}}
     result = tools.call(me.context(), "propose_change", {"proposal": bad})
     assert result["accepted"] is False and "override_object" in result["errors"][0]
     assert "change_id" not in result

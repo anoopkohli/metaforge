@@ -8,13 +8,13 @@ into a query in a small JSON query language (never SQL) that the server validate
 
 | Tenant | Business | Objects (records) | Restricted fields |
 |---|---|---|---|
-| fjord | Fjord Taxi Co. | worker (24), vehicle (14), ride (220) | salary, vehicle purchase_price |
-| cinder | Cinder & Partners LLP | worker (18), client (30), matter (45), time_entry (180) | salary, retainer_balance, hourly_rate |
-| gable | Gable Family Dental | worker (14), patient (80), appointment (190) | salary, date_of_birth, clinical_notes |
-| juniper | Juniper Builders | worker (20), project (25), equipment (40) | salary, project budget |
-| acme | Acme Coffee Roasters | worker (16), product (14), sale (240) | salary, unit_cost |
+| fjord | Fjord Taxi Co. | employee (24), vehicle (14), ride (220) | salary, vehicle purchase_price |
+| cinder | Cinder & Partners LLP | employee (18), client (30), matter (45), time_entry (180) | salary, retainer_balance, hourly_rate |
+| gable | Gable Family Dental | employee (14), patient (80), appointment (190) | salary, date_of_birth, clinical_notes |
+| juniper | Juniper Builders | employee (20), project (25), equipment (40) | salary, project budget |
+| acme | Acme Coffee Roasters | employee (16), product (14), sale (240) | salary, unit_cost |
 
-Workers have department, job title, badge number and salary (per-title pay ranges); every tenant also
+Employees have department, job title, badge number and salary (per-title pay ranges); every tenant also
 has its stage-0 asset records, one of which carries the tenant's canary. Each business adds two policy
 documents to its Ask documents corpus. All values come from an RNG seeded by tenant, never the clock;
 the stage 0-5 seed data and baselines are unchanged.

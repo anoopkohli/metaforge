@@ -14,6 +14,12 @@ This is part of the project: the point is to show how the tools were directed an
 
 ## Entries
 
+- 2026-10-14 · all stages · **A scripted rename overreached twice.** Renaming the HR object `worker` to
+  `employee` (while keeping queue "workers") by script also renamed a local replica-count variable whose
+  line did not mention queues, and silently removed the premise of `repair-unknown-reference`, whose
+  first attempt referenced `employee` precisely because it did not exist. Caught by lint (undefined
+  name) and by the generator replay suite (the repair never happened). Fix: the variable restored; the
+  case now uses the missing object `staff_member`. Entries above this one keep the old name.
 - 2026-10-14 · stage 5 · **The triage prompt never stated the summary limit.** `Diagnosis.summary` is
   capped at 500 characters, but the prompt only says "one plain paragraph". In live run 2, three runs
   reached their last step, tried to finish (the new last-step note worked) and were rejected for a

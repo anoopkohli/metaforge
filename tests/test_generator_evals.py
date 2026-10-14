@@ -53,7 +53,7 @@ CREATE = {
         "name": "vehicle",
         "fields": [
             {"name": "plate", "type": "string", "required": True},
-            {"name": "owner", "type": "reference", "reference_to": "worker"},
+            {"name": "owner", "type": "reference", "reference_to": "employee"},
         ],
     },
 }
@@ -76,7 +76,7 @@ def test_scorer_gives_partial_credit():
 
 
 def test_scorer_checks_references_and_required():
-    case = _case({"required": ["plate"], "references": {"owner": "worker"}})
+    case = _case({"required": ["plate"], "references": {"owner": "employee"}})
     assert proposal_matches(_out(CREATE), case) == 1.0
     case = _case({"required": ["owner"], "references": {"owner": "fjord_asset"}})
     assert proposal_matches(_out(CREATE), case) == 0.0

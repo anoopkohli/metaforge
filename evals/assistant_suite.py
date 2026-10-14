@@ -48,7 +48,7 @@ def make_world():
 def person(store, tenants, tid: str, title: str) -> tuple[dict, TenantContext]:
     p = next(p for p in directory(store, tenants[tid]) if p["title"] == title)
     rec = next(
-        w for w in store.list_records(tenants[tid].context(), "worker") if w["id"] == p["id"]
+        w for w in store.list_records(tenants[tid].context(), "employee") if w["id"] == p["id"]
     )
     return rec, TenantContext(tid, subject=rec["id"], roles=frozenset(roles_for(tid, rec)))
 

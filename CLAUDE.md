@@ -1,6 +1,6 @@
 # CLAUDE.md — standing rules for metaforge
 
-metaforge is a synthetic, multi-tenant, metadata-driven app platform used as a testbed for AI features
+metaforge is a synthetic multi-tenant app platform, where each tenant defines its own objects, used as a testbed for AI features
 (generation, tool use, RAG, evals, incident triage). It is a personal project. It shares no code, schemas,
 data or naming with any employer system.
 

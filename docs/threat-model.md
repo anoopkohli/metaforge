@@ -204,10 +204,10 @@ and runs it over that tenant's records only.
 
 ## Stage 7 (assistant, row-level access, audit log)
 
-Users sign in as a person from their company's directory (a synthetic worker). The server derives
+Users sign in as a person from their company's directory (a synthetic employee). The server derives
 their roles from the directory at sign-in: `manager` for department heads and managers, and *row
 scopes* such as `own:ride.driver` (a driver sees only rides where `driver` is themselves). Roles and the
-worker ID are signed into the session token; the browser never sends them again.
+employee ID are signed into the session token; the browser never sends them again.
 
 The assistant is one agent loop (at most 8 steps, JSON actions through `LLMClient`) with tools to
 search documents, list and query data, describe objects, and *propose* record updates or schema

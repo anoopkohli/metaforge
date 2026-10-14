@@ -137,7 +137,7 @@ def _view(store: MetadataStore, ctx: TenantContext, name: str) -> _View | None:
 
 
 def row_scope(ctx: TenantContext, object_name: str) -> list[str]:
-    """Fields that must equal the caller's worker ID for a row of `object_name` to be visible."""
+    """Fields that must equal the caller's employee ID for a row of `object_name` to be visible."""
     prefix = f"own:{object_name}."
     return sorted(r[len(prefix) :] for r in ctx.roles if r.startswith(prefix))
 

@@ -10,7 +10,7 @@ REMEDY = {
     "db_latency": lambda env, tid, truth: env.set_pool_size(tid, env.state[tid].pool_size * 2),
     "queue_backlog": lambda env, tid, truth: env.dead_letter(tid, truth["message_id"]),
     "bad_metadata_change": lambda env, tid, truth: env.revert_metadata(
-        tid, "worker", truth["to_version"]
+        tid, "employee", truth["to_version"]
     ),
 }
 ALERT = {

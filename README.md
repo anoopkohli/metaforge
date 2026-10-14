@@ -29,7 +29,7 @@ approval. Every one of those claims is an attack in the repo that runs on every 
 - **Three live runs** against a real model ([`docs/results-live.md`](docs/results-live.md)), under $3 in
   all: **71/82 → 78/82 → 81/82** as each run's findings were fixed. No safety failures in 62
   safety-checked runs, every time. Run 1 alone found 4 bugs the offline tests missed.
-- **49 logged AI mistakes** in [`docs/ai-assist-log.md`](docs/ai-assist-log.md).
+- **50 logged AI mistakes** in [`docs/ai-assist-log.md`](docs/ai-assist-log.md).
 
 ## How it was built with AI
 
@@ -75,6 +75,10 @@ flowchart LR
   yet written.
 
 > Personal project. Uses synthetic data only and shares no code, schemas or designs with any employer.
+>
+> It is a deliberately small illustration of guardrail principles, not a reference architecture.
+> Production multi-tenant platforms handle tenancy, isolation and scale with far more sophistication
+> than one SQLite store and one Postgres instance.
 
 Licensed under the [MIT License](LICENSE).
 
@@ -153,8 +157,8 @@ export METAFORGE_AUTH_SECRET=dev-only-secret ANTHROPIC_API_KEY=...
 pip install -e ".[llm]"
 make seed
 TOKEN=$(python -m core.cli token fjord)
-python -m generator --token "$TOKEN" "Track company vehicles: plate number, model year, assigned worker"
-python -m generator --token "$TOKEN" "Add a badge number to workers" --apply
+python -m generator --token "$TOKEN" "Track company vehicles: plate number, model year, assigned employee"
+python -m generator --token "$TOKEN" "Add a badge number to employees" --apply
 ```
 
 The model's reply is untrusted: it is parsed strictly, checked against this tenant's own catalog, repaired

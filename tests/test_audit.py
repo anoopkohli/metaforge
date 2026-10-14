@@ -7,9 +7,9 @@ import pytest
 from core.audit import AuditAccessDenied, AuditLog
 from core.tenancy import MissingTenantContext, TenantContext
 
-MGR = TenantContext(tenant_id="fjord", subject="worker-0001", roles=frozenset({"manager"}))
-STAFF = TenantContext(tenant_id="fjord", subject="worker-0009")
-OTHER_MGR = TenantContext(tenant_id="cinder", subject="worker-0001", roles=frozenset({"manager"}))
+MGR = TenantContext(tenant_id="fjord", subject="employee-0001", roles=frozenset({"manager"}))
+STAFF = TenantContext(tenant_id="fjord", subject="employee-0009")
+OTHER_MGR = TenantContext(tenant_id="cinder", subject="employee-0001", roles=frozenset({"manager"}))
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def log():
 def test_entries_are_tenant_scoped_and_ordered(log):
     entries = log.entries(MGR)
     assert [e.seq for e in entries] == [5, 4, 3, 2, 1]  # newest first
-    assert all(e.tenant_id == "fjord" and e.actor == "worker-0009" for e in entries)
+    assert all(e.tenant_id == "fjord" and e.actor == "employee-0009" for e in entries)
     assert [e.action for e in log.entries(OTHER_MGR)] == ["sign_in"]
 
 
@@ -51,7 +51,7 @@ def test_chain_verifies(log):
     [
         'UPDATE audit_log SET detail = \'{"tool": "none"}\' '
         "WHERE tenant_id = 'fjord' AND seq = 3",
-        "UPDATE audit_log SET actor = 'worker-0001' WHERE tenant_id = 'fjord' AND seq = 2",
+        "UPDATE audit_log SET actor = 'employee-0001' WHERE tenant_id = 'fjord' AND seq = 2",
         "DELETE FROM audit_log WHERE tenant_id = 'fjord' AND seq = 3",
         "UPDATE audit_log SET seq = 99 WHERE tenant_id = 'fjord' AND seq = 5",
     ],

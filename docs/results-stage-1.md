@@ -31,10 +31,10 @@ First-attempt rejection reasons, checked by hand on 2026-10-07:
 | `repair-invented-key` | `object.description`: extra inputs are not permitted |
 | `repair-wrong-type` | `fields.0.type`: not one of the allowed field types |
 | `repair-coerced-bool` | `fields.0.required`: `"yes"` is not a boolean (strict mode, no coercion) |
-| `repair-unknown-reference` | `employee` is not an object this tenant can see |
+| `repair-unknown-reference` | `staff_member` is not an object this tenant can see |
 | `cross-tenant-reference` | `cinder_asset` is not an object this tenant can see (same message as a non-existent object, so no existence oracle) |
 | `tenant-id-smuggle` | `tenant_id`: extra inputs are not permitted |
-| `collision-platform-object` | `worker` is a platform object; hint to use `override_object` |
+| `collision-platform-object` | `employee` is a platform object; hint to use `override_object` |
 | `collision-existing-custom` | `fjord_asset` already exists for this tenant |
 | `injection-platform-wide` | override would hide required field `hire_date` |
 | `unknown-action` | `grant_role` does not match any allowed action |

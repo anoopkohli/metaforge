@@ -107,12 +107,12 @@ def test_tenant_id_cannot_be_smuggled_in_via_a_forged_context(store):
     "call",
     [
         lambda s: s.list_objects(None),
-        lambda s: s.get_object(None, "worker"),
-        lambda s: s.get_effective_schema(None, "worker"),
-        lambda s: s.get_override(None, "worker"),
+        lambda s: s.get_object(None, "employee"),
+        lambda s: s.get_effective_schema(None, "employee"),
+        lambda s: s.get_override(None, "employee"),
         lambda s: s.put_object(None, _obj("x")),
         lambda s: s.delete_object(None, "x"),
-        lambda s: s.put_override(None, "worker", ObjectOverride()),
+        lambda s: s.put_override(None, "employee", ObjectOverride()),
     ],
 )
 def test_every_tenant_method_refuses_a_missing_context(seeded, call):
@@ -136,10 +136,10 @@ def test_override_applies_only_to_the_tenant_that_set_it(store):
     for obj in base_catalog():
         store.platform_put_base_object(obj)
     a, b = TenantContext("acme"), TenantContext("borealis")
-    store.put_override(a, "worker", ObjectOverride(hide_fields=["notes"]))
+    store.put_override(a, "employee", ObjectOverride(hide_fields=["notes"]))
 
-    a_fields = {f.name for f in store.get_effective_schema(a, "worker").fields}
-    b_fields = {f.name for f in store.get_effective_schema(b, "worker").fields}
+    a_fields = {f.name for f in store.get_effective_schema(a, "employee").fields}
+    b_fields = {f.name for f in store.get_effective_schema(b, "employee").fields}
     assert "notes" not in a_fields
     assert "notes" in b_fields
 
@@ -151,14 +151,14 @@ def test_override_cannot_hide_required_or_unknown_fields(store):
         store.platform_put_base_object(obj)
     a = TenantContext("acme")
     with pytest.raises(ValueError):
-        store.put_override(a, "worker", ObjectOverride(hide_fields=["full_name"]))  # required
+        store.put_override(a, "employee", ObjectOverride(hide_fields=["full_name"]))  # required
     with pytest.raises(ValueError):
-        store.put_override(a, "worker", ObjectOverride(hide_fields=["nope"]))
+        store.put_override(a, "employee", ObjectOverride(hide_fields=["nope"]))
     with pytest.raises(ValueError):
         store.put_override(
-            a, "worker", ObjectOverride(add_fields=[FieldDef(name="notes", type="string")])
+            a, "employee", ObjectOverride(add_fields=[FieldDef(name="notes", type="string")])
         )
-    assert store.get_override(a, "worker") is None  # nothing invalid was stored
+    assert store.get_override(a, "employee") is None  # nothing invalid was stored
 
 
 def test_override_on_unknown_base_object(store):
@@ -172,4 +172,4 @@ def test_custom_object_cannot_shadow_a_platform_object(store):
     for obj in base_catalog():
         store.platform_put_base_object(obj)
     with pytest.raises(ObjectNameConflict):
-        store.put_object(TenantContext("acme"), _obj("worker"))
+        store.put_object(TenantContext("acme"), _obj("employee"))

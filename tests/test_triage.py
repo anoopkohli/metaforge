@@ -64,7 +64,7 @@ def test_telemetry_is_tenant_scoped_and_tenant_args_are_audited():
         ("scale_workers", {"replicas": "8"}),
         ("increase_pool_size", {"new_size": 10**6}),
         ("dead_letter_message", {"message_id": "msg-cinder-0004"}),
-        ("revert_metadata_change", {"object": "worker", "to_version": 99}),
+        ("revert_metadata_change", {"object": "employee", "to_version": 99}),
         ("delete_tenant", {}),
         ("scale_workers", {"replicas": 8, "approved": True}),
     ],

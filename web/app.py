@@ -109,7 +109,7 @@ class LoginReq(_Req):
     # in. The person's roles come from the directory, and after this everything comes only from the
     # signed cookie.
     tenant_id: str = Field(max_length=64)
-    worker_id: str = Field(max_length=64)
+    employee_id: str = Field(max_length=64)
 
 
 class DataQueryReq(_Req):
@@ -403,11 +403,11 @@ async def login(request: Request) -> Response:
     req = await _body(request, LoginReq)
     if req.tenant_id not in st.tenant_ids:
         raise HTTPError(400, "unknown tenant")
-    person = next((p for p in st.people[req.tenant_id] if p["id"] == req.worker_id), None)
+    person = next((p for p in st.people[req.tenant_id] if p["id"] == req.employee_id), None)
     if person is None:
         raise HTTPError(400, "unknown person")
-    worker = {"job_title": person["title"]}
-    roles = roles_for(req.tenant_id, worker)
+    employee = {"job_title": person["title"]}
+    roles = roles_for(req.tenant_id, employee)
     token = issue_token(
         st.secret, req.tenant_id, subject=person["id"], roles=roles, ttl_seconds=SESSION_TTL
     )

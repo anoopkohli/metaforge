@@ -1,7 +1,7 @@
 {
   "version": 2,
   "suite": "dataqa",
-  "fingerprint": "83dbf2bd775d850b",
+  "fingerprint": "aa8207a2b784c5d8",
   "n": 26,
   "pass_rate": 1.0,
   "mean_score": 1.0,
@@ -48,6 +48,13 @@
     {
       "date": "2026-10-13",
       "reason": "First live run: fjord-q1-staff gold no longer sorts (the question asks for no order; the model's correct unsorted answer failed)",
+      "pass_rate": 1.0,
+      "n": 26,
+      "accepted_regression": false
+    },
+    {
+      "date": "2026-10-14",
+      "reason": "Terminology: the HR object 'worker' is renamed 'employee' in data, prompts and cases (queue workers keep their name); repair-unknown-reference now uses the missing object 'staff_member'",
       "pass_rate": 1.0,
       "n": 26,
       "accepted_regression": false

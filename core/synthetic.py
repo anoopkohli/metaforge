@@ -40,12 +40,12 @@ def base_catalog() -> list[ObjectDef]:
     """Platform-level objects every tenant can see (and override)."""
     return [
         ObjectDef(
-            name="worker",
-            label="Worker",
+            name="employee",
+            label="Employee",
             fields=[
                 FieldDef(name="full_name", type="string", required=True),
                 FieldDef(name="hire_date", type="date", required=True),
-                FieldDef(name="manager", type="reference", reference_to="worker"),
+                FieldDef(name="manager", type="reference", reference_to="employee"),
                 FieldDef(name="notes", type="string"),
             ],
         ),
@@ -53,7 +53,7 @@ def base_catalog() -> list[ObjectDef]:
             name="leave_request",
             label="Leave Request",
             fields=[
-                FieldDef(name="worker", type="reference", reference_to="worker", required=True),
+                FieldDef(name="employee", type="reference", reference_to="employee", required=True),
                 FieldDef(name="start_date", type="date", required=True),
                 FieldDef(name="end_date", type="date", required=True),
                 FieldDef(name="reason", type="string"),
@@ -63,7 +63,9 @@ def base_catalog() -> list[ObjectDef]:
             name="expense_report",
             label="Expense Report",
             fields=[
-                FieldDef(name="submitter", type="reference", reference_to="worker", required=True),
+                FieldDef(
+                    name="submitter", type="reference", reference_to="employee", required=True
+                ),
                 FieldDef(name="total", type="decimal", required=True),
                 FieldDef(name="memo", type="string"),
             ],
@@ -87,11 +89,11 @@ def seed_demo(store: MetadataStore, n_tenants: int = 5, seed: int = 7) -> list[S
         tenant = SyntheticTenant(tenant_id=name, canary=canary)
         ctx = tenant.context()
 
-        # Every tenant: hide the free-text notes field and add 1-2 extra fields to worker.
+        # Every tenant: hide the free-text notes field and add 1-2 extra fields to employee.
         extras = rng.sample(_EXTRA_FIELDS, rng.randint(1, 2))
         store.put_override(
             ctx,
-            "worker",
+            "employee",
             ObjectOverride(
                 add_fields=extras,
                 hide_fields=["notes"],
@@ -107,7 +109,7 @@ def seed_demo(store: MetadataStore, n_tenants: int = 5, seed: int = 7) -> list[S
                 label=f"{name.title()} Asset ({canary})",
                 fields=[
                     FieldDef(name="tag", type="string", required=True),
-                    FieldDef(name="assigned_to", type="reference", reference_to="worker"),
+                    FieldDef(name="assigned_to", type="reference", reference_to="employee"),
                 ],
             ),
         )
@@ -167,7 +169,8 @@ def synthetic_documents(tenant: SyntheticTenant, seed: int = 7) -> list[Syntheti
         SyntheticDocument(
             "leave_policy",
             f"{name} leave policy",
-            f"Workers may carry over up to {carry} unused leave days into the next year. {ref}\n\n"
+            f"Employees may carry over up to {carry} unused leave days into the next year. "
+            f"{ref}\n\n"
             f"Planned leave longer than one week needs {notice} days notice, recorded as a leave "
             f"request with start and end dates. {ref}",
             {"carryover_days": str(carry), "notice_days": str(notice)},
@@ -176,7 +179,7 @@ def synthetic_documents(tenant: SyntheticTenant, seed: int = 7) -> list[Syntheti
             "asset_handling",
             f"{name} asset handling",
             f"Lost or stolen assets must be reported within {hours} hours to the {team} desk. {ref}"
-            f"\n\nEvery asset has a tag and may be assigned to one worker at a time. {ref}",
+            f"\n\nEvery asset has a tag and may be assigned to one employee at a time. {ref}",
             {"report_hours": str(hours), "asset_team": team},
         ),
         SyntheticDocument(
@@ -200,8 +203,8 @@ def synthetic_documents(tenant: SyntheticTenant, seed: int = 7) -> list[Syntheti
         SyntheticDocument(
             "onboarding",
             f"{name} onboarding guide",
-            f"New workers receive a laptop within {laptop} days of their hire date. {ref}\n\n"
-            f"Each new worker joins a buddy program that lasts {buddy} weeks. {ref}",
+            f"New employees receive a laptop within {laptop} days of their hire date. {ref}\n\n"
+            f"Each new employee joins a buddy program that lasts {buddy} weeks. {ref}",
             {"laptop_days": str(laptop), "buddy_weeks": str(buddy)},
         ),
     ]

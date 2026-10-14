@@ -99,8 +99,8 @@ class ChaosEnvironment:
                 workers=int(facts["worker_replicas"]),
                 rotation=facts["rotation"],
             )
-            current = self.store.get_override(t.context(), "worker")
-            self._overrides[(t.tenant_id, "worker")] = [current or ObjectOverride()]
+            current = self.store.get_override(t.context(), "employee")
+            self._overrides[(t.tenant_id, "employee")] = [current or ObjectOverride()]
             self._log(
                 t.tenant_id, "config", "INFO", f"tenant configuration loaded (ref {t.canary})"
             )
@@ -142,29 +142,29 @@ class ChaosEnvironment:
             )
             return {"kind": kind, "message_id": msg.id}
         if kind == "bad_metadata_change":
-            history = self._overrides[(tenant_id, "worker")]
+            history = self._overrides[(tenant_id, "employee")]
             current = history[-1]
             broken = ObjectOverride(
                 add_fields=current.add_fields,
                 hide_fields=sorted(set(current.hide_fields) | {"manager"}),
                 relabel=current.relabel,
             )
-            self.store.put_override(st.tenant.context(), "worker", broken)
+            self.store.put_override(st.tenant.context(), "employee", broken)
             history.append(broken)
             version = len(history)
             change = MetadataChange(
                 f"change-{len(self.changes) + 1:03d}",
                 tenant_id,
-                "worker",
+                "employee",
                 version,
                 self.minute,
-                "worker: hide field 'manager'",
+                "employee: hide field 'manager'",
             )
             self.changes.append(change)
             st.metadata_broken = True
             return {
                 "kind": kind,
-                "object": "worker",
+                "object": "employee",
                 "to_version": version - 1,
                 "change_id": change.id,
             }
@@ -274,7 +274,7 @@ class ChaosEnvironment:
                 tid,
                 "api",
                 "ERROR",
-                "leave_request approval failed: worker.manager is not visible for this tenant",
+                "leave_request approval failed: employee.manager is not visible for this tenant",
             )
         elif rng.random() < 0.2:
             self._log(tid, "api", "INFO", f"served {rng.randint(80, 120)} requests")

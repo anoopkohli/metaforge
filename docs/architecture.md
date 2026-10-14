@@ -1,6 +1,6 @@
 # Architecture
 
-metaforge is a small synthetic platform where tenants define business objects through metadata.
+metaforge is a small synthetic platform where tenants define their own objects and fields.
 It is generic by design and shares nothing with any employer system.
 
 ```

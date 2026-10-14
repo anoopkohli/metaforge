@@ -11,7 +11,7 @@ def test_reference_field_needs_target():
 
 def test_non_reference_field_rejects_target():
     with pytest.raises(ValidationError):
-        FieldDef(name="owner", type="string", reference_to="worker")
+        FieldDef(name="owner", type="string", reference_to="employee")
 
 
 def test_duplicate_field_names_rejected():

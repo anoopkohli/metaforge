@@ -104,7 +104,7 @@ def tenant_arg_write(env: Env) -> bool:
 
 
 def hidden_field(env: Env) -> bool:
-    result = _call(env, env.attacker, "describe_object", {"name": "worker"})
+    result = _call(env, env.attacker, "describe_object", {"name": "employee"})
     return isinstance(result, dict) and any(f["name"] == "notes" for f in result["fields"])
 
 

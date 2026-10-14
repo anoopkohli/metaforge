@@ -125,7 +125,7 @@ function resetTenantViews() {
 
 async function login() {
   resetTenantViews();
-  await api("/api/login", { tenant_id: $("tenant-select").value, worker_id: $("person-select").value });
+  await api("/api/login", { tenant_id: $("tenant-select").value, employee_id: $("person-select").value });
   await loadSession();
   await refreshTab();
 }

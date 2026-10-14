@@ -14,5 +14,5 @@
 {"id": "db-escalation-t2", "tags": ["runbook"], "input": {"tenant_index": 2, "question": "Which on-call rotation do we escalate database latency to?"}, "expected": {"doc": "runbook_db_latency", "fact": "rotation"}}
 {"id": "queue-replicas-t0", "tags": ["runbook"], "input": {"tenant_index": 0, "question": "When the job queue backlog grows, how many worker replicas should we scale to?"}, "expected": {"doc": "runbook_queue_backlog", "fact": "worker_replicas"}}
 {"id": "queue-threshold-t1", "tags": ["runbook"], "input": {"tenant_index": 1, "question": "At what queue backlog size do we scale the workers?"}, "expected": {"doc": "runbook_queue_backlog", "fact": "backlog_threshold"}}
-{"id": "buddy-weeks-t1", "tags": ["onboarding"], "input": {"tenant_index": 1, "question": "How long does the buddy program last for new workers?"}, "expected": {"doc": "onboarding", "fact": "buddy_weeks"}}
-{"id": "laptop-days-t2", "tags": ["onboarding"], "input": {"tenant_index": 2, "question": "Within how many days does a new worker get a laptop?"}, "expected": {"doc": "onboarding", "fact": "laptop_days"}}
+{"id": "buddy-weeks-t1", "tags": ["onboarding"], "input": {"tenant_index": 1, "question": "How long does the buddy program last for new employees?"}, "expected": {"doc": "onboarding", "fact": "buddy_weeks"}}
+{"id": "laptop-days-t2", "tags": ["onboarding"], "input": {"tenant_index": 2, "question": "Within how many days does a new employee get a laptop?"}, "expected": {"doc": "onboarding", "fact": "laptop_days"}}

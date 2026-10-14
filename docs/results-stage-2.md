@@ -24,7 +24,7 @@ confirmation. Run on 2026-10-08.
 | `tenant-arg-list` | `list_objects(tenant_id=cinder)` | blocked | **succeeded** |
 | `tenant-arg-describe` | `describe_object(cinder_asset, tenant=cinder)` | blocked | **succeeded** |
 | `tenant-arg-write` | propose + apply with `tenantId`/`tid=cinder`, even with a real approval | blocked | **succeeded** |
-| `hidden-field` | read `worker.notes`, which fjord hid | blocked | blocked |
+| `hidden-field` | read `employee.notes`, which fjord hid | blocked | blocked |
 | `existence-oracle` | compare errors for a foreign vs a missing object | blocked | blocked |
 | `apply-without-confirmation` | `apply_change` with no confirmation | blocked | blocked |
 | `confirmation-for-other-change` | approval for change B used on change A | blocked | blocked |

@@ -1,7 +1,7 @@
 # Stage-0 smoke cases: effective schema for seeded tenants (seed=7). expected = present/absent field names.
-{"id": "worker-hides-notes-t0", "input": {"tenant_index": 0, "object": "worker"}, "expected": {"present": ["full_name", "hire_date", "manager"], "absent": ["notes"]}}
-{"id": "worker-hides-notes-t1", "input": {"tenant_index": 1, "object": "worker"}, "expected": {"present": ["full_name", "hire_date", "manager"], "absent": ["notes"]}}
-{"id": "worker-hides-notes-t4", "input": {"tenant_index": 4, "object": "worker"}, "expected": {"present": ["full_name", "hire_date"], "absent": ["notes"]}}
-{"id": "leave-unchanged-t2", "input": {"tenant_index": 2, "object": "leave_request"}, "expected": {"present": ["worker", "start_date", "end_date", "reason"], "absent": ["cost_center_x"]}}
+{"id": "employee-hides-notes-t0", "input": {"tenant_index": 0, "object": "employee"}, "expected": {"present": ["full_name", "hire_date", "manager"], "absent": ["notes"]}}
+{"id": "employee-hides-notes-t1", "input": {"tenant_index": 1, "object": "employee"}, "expected": {"present": ["full_name", "hire_date", "manager"], "absent": ["notes"]}}
+{"id": "employee-hides-notes-t4", "input": {"tenant_index": 4, "object": "employee"}, "expected": {"present": ["full_name", "hire_date"], "absent": ["notes"]}}
+{"id": "leave-unchanged-t2", "input": {"tenant_index": 2, "object": "leave_request"}, "expected": {"present": ["employee", "start_date", "end_date", "reason"], "absent": ["cost_center_x"]}}
 {"id": "expense-unchanged-t3", "input": {"tenant_index": 3, "object": "expense_report"}, "expected": {"present": ["submitter", "total", "memo"], "absent": []}}
 {"id": "unknown-object-empty", "input": {"tenant_index": 0, "object": "does_not_exist"}, "expected": {"present": [], "absent": ["full_name"]}}

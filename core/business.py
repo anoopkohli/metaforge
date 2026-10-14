@@ -1,5 +1,5 @@
 # ruff: noqa: E501  (data tables: business definitions read better unwrapped)
-"""Synthetic businesses: one per demo tenant, with workers, business objects, records and policies.
+"""Synthetic businesses: one per demo tenant, with employees, objects, records and policies.
 
 Invariants:
 - Deterministic: every value comes from an RNG seeded by (seed, tenant), never from the clock.
@@ -61,7 +61,7 @@ class _Kind:
     description: str
     # department -> [(job title, salary low, salary high[, hiring weight])], most senior title first
     departments: dict[str, list[tuple]]
-    n_workers: int
+    n_employees: int
     build: Callable[[random.Random, list[dict], str], dict[str, tuple[ObjectDef, list[dict]]]]
     docs: Callable[[random.Random, str], list[BusinessDoc]]
     questions: list[str]
@@ -83,15 +83,15 @@ def _f(name: str, type_: str, **kw) -> FieldDef:
     return FieldDef(name=name, type=type_, **kw)
 
 
-def _workers_of(workers: list[dict], *titles: str) -> list[dict]:
-    pool = [w for w in workers if w["job_title"] in titles]
-    return pool or workers
+def _employees_of(employees: list[dict], *titles: str) -> list[dict]:
+    pool = [w for w in employees if w["job_title"] in titles]
+    return pool or employees
 
 
 # ---- taxi -------------------------------------------------------------------------------------
 
 
-def _taxi(rng: random.Random, workers: list[dict], ref: str) -> dict:
+def _taxi(rng: random.Random, employees: list[dict], ref: str) -> dict:
     vehicle_def = ObjectDef(
         name="vehicle",
         label="Vehicle",
@@ -120,7 +120,7 @@ def _taxi(rng: random.Random, workers: list[dict], ref: str) -> dict:
         label="Ride",
         fields=[
             _f("ride_date", "date", required=True),
-            _f("driver", "reference", reference_to="worker", required=True),
+            _f("driver", "reference", reference_to="employee", required=True),
             _f("vehicle", "reference", reference_to="vehicle"),
             _f("pickup_zone", "string"),
             _f("dropoff_zone", "string"),
@@ -131,7 +131,7 @@ def _taxi(rng: random.Random, workers: list[dict], ref: str) -> dict:
             _f("payment_method", "string"),
         ],
     )
-    drivers = _workers_of(workers, "Driver")
+    drivers = _employees_of(employees, "Driver")
     zones = ["Airport", "Downtown", "University", "Harbor", "Stadium", "Suburbs"]
     rides = []
     for i in range(1, 221):
@@ -179,7 +179,7 @@ def _taxi_docs(rng: random.Random, ref: str) -> list[BusinessDoc]:
 # ---- law firm ---------------------------------------------------------------------------------
 
 
-def _law(rng: random.Random, workers: list[dict], ref: str) -> dict:
+def _law(rng: random.Random, employees: list[dict], ref: str) -> dict:
     client_def = ObjectDef(
         name="client",
         label="Client",
@@ -201,7 +201,7 @@ def _law(rng: random.Random, workers: list[dict], ref: str) -> dict:
         }
         for i in range(1, 31)
     ]
-    attorneys = _workers_of(workers, "Partner", "Associate")
+    attorneys = _employees_of(employees, "Partner", "Associate")
     matter_def = ObjectDef(
         name="matter",
         label="Matter",
@@ -211,7 +211,7 @@ def _law(rng: random.Random, workers: list[dict], ref: str) -> dict:
             _f("practice_area", "string"),
             _f("status", "string"),
             _f("opened_date", "date"),
-            _f("lead_attorney", "reference", reference_to="worker"),
+            _f("lead_attorney", "reference", reference_to="employee"),
         ],
     )
     areas = ["Litigation", "Corporate", "Employment", "Real estate", "Family"]
@@ -233,7 +233,7 @@ def _law(rng: random.Random, workers: list[dict], ref: str) -> dict:
         label="Time entry",
         fields=[
             _f("matter", "reference", reference_to="matter", required=True),
-            _f("attorney", "reference", reference_to="worker", required=True),
+            _f("attorney", "reference", reference_to="employee", required=True),
             _f("entry_date", "date"),
             _f("hours", "decimal"),
             _f("billable", "boolean"),
@@ -283,7 +283,7 @@ def _law_docs(rng: random.Random, ref: str) -> list[BusinessDoc]:
 # ---- dental office ----------------------------------------------------------------------------
 
 
-def _dental(rng: random.Random, workers: list[dict], ref: str) -> dict:
+def _dental(rng: random.Random, employees: list[dict], ref: str) -> dict:
     patient_def = ObjectDef(
         name="patient",
         label="Patient",
@@ -310,13 +310,13 @@ def _dental(rng: random.Random, workers: list[dict], ref: str) -> dict:
         }
         for i in range(1, 81)
     ]
-    dentists = _workers_of(workers, "Dentist", "Hygienist")
+    dentists = _employees_of(employees, "Dentist", "Hygienist")
     appt_def = ObjectDef(
         name="appointment",
         label="Appointment",
         fields=[
             _f("patient", "reference", reference_to="patient", required=True),
-            _f("dentist", "reference", reference_to="worker"),
+            _f("dentist", "reference", reference_to="employee"),
             _f("appointment_date", "date", required=True),
             _f("procedure", "string"),
             _f("fee", "decimal"),
@@ -364,8 +364,8 @@ def _dental_docs(rng: random.Random, ref: str) -> list[BusinessDoc]:
 # ---- construction -----------------------------------------------------------------------------
 
 
-def _construction(rng: random.Random, workers: list[dict], ref: str) -> dict:
-    pms = _workers_of(workers, "Project Manager", "Foreman")
+def _construction(rng: random.Random, employees: list[dict], ref: str) -> dict:
+    pms = _employees_of(employees, "Project Manager", "Foreman")
     project_def = ObjectDef(
         name="project",
         label="Project",
@@ -376,7 +376,7 @@ def _construction(rng: random.Random, workers: list[dict], ref: str) -> dict:
             _f("status", "string"),
             _f("start_date", "date"),
             _f("budget", "decimal", restricted=True, label="Budget"),
-            _f("project_manager", "reference", reference_to="worker"),
+            _f("project_manager", "reference", reference_to="employee"),
         ],
     )
     kinds = ["kitchen remodel", "office fit-out", "roof replacement", "warehouse extension",
@@ -444,7 +444,7 @@ def _construction_docs(rng: random.Random, ref: str) -> list[BusinessDoc]:
 # ---- coffee roaster ---------------------------------------------------------------------------
 
 
-def _coffee(rng: random.Random, workers: list[dict], ref: str) -> dict:
+def _coffee(rng: random.Random, employees: list[dict], ref: str) -> dict:
     product_def = ObjectDef(
         name="product",
         label="Product",
@@ -564,7 +564,7 @@ KINDS: dict[str, _Kind] = {
     ),
 }  # fmt: skip
 
-_WORKER_FIELDS = [
+_EMPLOYEE_FIELDS = [
     FieldDef(name="department", type="string", label="Department"),
     FieldDef(name="job_title", type="string", label="Job title"),
     FieldDef(name="badge_number", type="string", label="Badge number"),
@@ -572,7 +572,7 @@ _WORKER_FIELDS = [
 ]
 
 
-def _value_for(f: FieldDef, rng: random.Random, workers: list[dict]):
+def _value_for(f: FieldDef, rng: random.Random, employees: list[dict]):
     if f.type == "string":
         return rng.choice(["north", "south", "east", "west", "central"])
     if f.type == "integer":
@@ -583,13 +583,13 @@ def _value_for(f: FieldDef, rng: random.Random, workers: list[dict]):
         return rng.random() < 0.2
     if f.type == "date":
         return _day(rng, -100, 100)
-    return rng.choice(workers)["id"] if workers else None
+    return rng.choice(employees)["id"] if employees else None
 
 
-def _make_workers(kind: _Kind, rng: random.Random, prefix: str) -> list[dict]:
+def _make_employees(kind: _Kind, rng: random.Random, prefix: str) -> list[dict]:
     titles = [(dept, t) for dept, ts in kind.departments.items() for t in ts]
-    workers: list[dict] = []
-    for i in range(1, kind.n_workers + 1):
+    employees: list[dict] = []
+    for i in range(1, kind.n_employees + 1):
         # The first title of each department is filled once, as its head; the rest are spread.
         # Every title appears at least once; the rest are drawn with the junior titles weighted up.
         if i <= len(titles):
@@ -603,9 +603,9 @@ def _make_workers(kind: _Kind, rng: random.Random, prefix: str) -> list[dict]:
             dept, spec = rng.choices(titles, weights)[0]
         title, lo, hi = spec[:3]
         salary = rng.uniform(lo, hi)
-        workers.append(
+        employees.append(
             {
-                "id": f"worker-{i:04d}",
+                "id": f"employee-{i:04d}",
                 "full_name": _person(rng),
                 "hire_date": _day(rng, -3000, -10),
                 "manager": None,
@@ -618,13 +618,13 @@ def _make_workers(kind: _Kind, rng: random.Random, prefix: str) -> list[dict]:
         )
     heads = {
         w["department"]: w["id"]
-        for w in reversed(workers)
+        for w in reversed(employees)
         if w["job_title"] == kind.departments[w["department"]][0][0]
     }
-    for w in workers:
+    for w in employees:
         head = heads.get(w["department"])
         w["manager"] = head if head != w["id"] else None
-    return workers
+    return employees
 
 
 def seed_business(
@@ -639,40 +639,40 @@ def seed_business(
         ctx = tenant.context()
         rng = random.Random(f"business:{seed}:{tenant.tenant_id}")
 
-        # Workers: extend the platform worker object for this tenant (merged onto its override).
-        current = store.get_override(ctx, "worker") or ObjectOverride()
+        # Employees: extend the platform employee object for this tenant (merged onto its override).
+        current = store.get_override(ctx, "employee") or ObjectOverride()
         have = {f.name for f in current.add_fields}
         store.put_override(
             ctx,
-            "worker",
+            "employee",
             ObjectOverride(
                 add_fields=[
                     *current.add_fields,
-                    *(f for f in _WORKER_FIELDS if f.name not in have),
+                    *(f for f in _EMPLOYEE_FIELDS if f.name not in have),
                 ],
                 hide_fields=current.hide_fields,
                 relabel=current.relabel,
             ),
         )
-        workers = _make_workers(kind, rng, tenant.tenant_id[:2].upper())
+        employees = _make_employees(kind, rng, tenant.tenant_id[:2].upper())
         for extra in current.add_fields:  # values for the tenant's stage-0 extra fields too
-            for w in workers:
-                w[extra.name] = _value_for(extra, rng, workers)
-        store.put_records(ctx, "worker", workers)
+            for w in employees:
+                w[extra.name] = _value_for(extra, rng, employees)
+        store.put_records(ctx, "employee", employees)
 
         # Assets (stage 0 custom object): records carry the canary.
         assets = [
             {
                 "id": f"asset-{i:04d}",
                 "tag": tenant.canary if i == 1 else f"AT-{rng.randint(100, 999)}",
-                "assigned_to": rng.choice(workers)["id"],
+                "assigned_to": rng.choice(employees)["id"],
             }  # fmt: skip
             for i in range(1, 9)
         ]
         store.put_records(ctx, f"{tenant.tenant_id}_asset", assets)
 
-        names = ["worker", f"{tenant.tenant_id}_asset"]
-        for name, (obj, records) in kind.build(rng, workers, tenant.canary).items():
+        names = ["employee", f"{tenant.tenant_id}_asset"]
+        for name, (obj, records) in kind.build(rng, employees, tenant.canary).items():
             store.put_object(ctx, obj)
             store.put_records(ctx, name, records)
             names.append(name)
@@ -719,18 +719,18 @@ ACCESS: dict[str, dict] = {
 }
 
 
-def roles_for(tenant_id: str, worker: dict) -> tuple[str, ...]:
+def roles_for(tenant_id: str, employee: dict) -> tuple[str, ...]:
     """Roles for one person: `manager` and/or `own:<object>.<field>` row scopes."""
     rules = ACCESS.get(tenant_id, {"managers": set(), "scopes": {}})
-    roles = [MANAGER] if worker.get("job_title") in rules["managers"] else []
-    roles += [f"own:{obj}.{fld}" for obj, fld in rules["scopes"].get(worker.get("job_title"), [])]
+    roles = [MANAGER] if employee.get("job_title") in rules["managers"] else []
+    roles += [f"own:{obj}.{fld}" for obj, fld in rules["scopes"].get(employee.get("job_title"), [])]
     return tuple(sorted(roles))
 
 
 def directory(store: MetadataStore, tenant: SyntheticTenant) -> list[dict]:
     """The company's people, as the demo identity provider shows them at sign-in."""
     people = []
-    for w in store.list_records(tenant.context(subject="directory"), "worker"):
+    for w in store.list_records(tenant.context(subject="directory"), "employee"):
         roles = roles_for(tenant.tenant_id, w)
         people.append(
             {

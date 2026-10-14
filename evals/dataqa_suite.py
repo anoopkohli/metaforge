@@ -61,7 +61,7 @@ def build(
         restricted_values: set[str] = set()
         if role != "manager":
             mgr = _ctx(tid, "manager")
-            for name in {gold["object"], "worker"}:
+            for name in {gold["object"], "employee"}:
                 view = store.get_effective_schema(mgr, name)
                 restricted = [f.name for f in view.fields if f.restricted] if view else []
                 for rec in store.list_records(mgr, name):

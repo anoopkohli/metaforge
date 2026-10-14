@@ -50,14 +50,14 @@ def test_scope_requires_a_real_context():
 
 
 def test_concurrent_tasks_do_not_see_each_others_tenant():
-    async def worker(tid: str, results: dict):
+    async def employee(tid: str, results: dict):
         with tenant_scope(TenantContext(tid)):
             await asyncio.sleep(0.01)  # yield so the tasks interleave
             results[tid] = require_tenant().tenant_id
 
     async def main():
         results: dict[str, str] = {}
-        await asyncio.gather(*(worker(t, results) for t in ["acme", "borealis", "cinder"]))
+        await asyncio.gather(*(employee(t, results) for t in ["acme", "borealis", "cinder"]))
         return results
 
     results = asyncio.run(main())

@@ -26,7 +26,7 @@ from dataqa import MANAGER_ROLE
 SCHEMA_EXAMPLES: tuple[dict, ...] = (
     {
         "action": "override_object",
-        "target": "worker",
+        "target": "employee",
         "override": {
             "add_fields": [{"name": "shirt_size", "type": "string", "label": "Shirt size"}],
             "hide_fields": [],

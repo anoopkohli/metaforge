@@ -26,7 +26,7 @@ def plan(tool, **args):
 def as_person(w, title, tenant="fjord"):
     t = w.tenants[tenant]
     p = next(p for p in directory(w.store, t) if p["title"] == title)
-    rec = next(x for x in w.store.list_records(t.context(), "worker") if x["id"] == p["id"])
+    rec = next(x for x in w.store.list_records(t.context(), "employee") if x["id"] == p["id"])
     return TenantContext(tenant, subject=p["id"], roles=frozenset(roles_for(tenant, rec)))
 
 
@@ -69,7 +69,7 @@ def test_unknown_sources_are_rejected():
 
 def test_identity_arguments_are_rejected():
     w = world(False)
-    for extra in ({"tenant_id": "cinder"}, {"as_user": "worker-0001"}, {"role": "manager"}):
+    for extra in ({"tenant_id": "cinder"}, {"as_user": "employee-0001"}, {"role": "manager"}):
         with pytest.raises(AssistantError):
             w.tools.call(w.ctx, "list_data", extra)
 
@@ -103,7 +103,7 @@ def test_record_update_waits_for_approval_and_rechecks():
     other = (
         as_person(w, "Driver", tenant="cinder")
         if False
-        else TenantContext("cinder", subject="worker-0001")
+        else TenantContext("cinder", subject="employee-0001")
     )
     with pytest.raises(AssistantError):
         w.tools.approve(other, prop["proposal_id"])  # another tenant cannot approve it
@@ -121,8 +121,8 @@ def test_record_update_waits_for_approval_and_rechecks():
 def test_bad_updates_are_rejected(changes):
     w = world(False)
     rec = w.store.list_records(w.tenants["fjord"].context(), "vehicle")[0]
-    obj = "worker" if "salary" in changes else "vehicle"
-    rid = w.driver["id"] if obj == "worker" else rec["id"]
+    obj = "employee" if "salary" in changes else "vehicle"
+    rid = w.driver["id"] if obj == "employee" else rec["id"]
     with pytest.raises(AssistantError):
         w.tools.call(
             w.ctx, "propose_record_update", {"object": obj, "record_id": rid, "changes": changes}
@@ -146,7 +146,7 @@ def test_schema_changes_need_a_manager():
     w = world(False)
     change = {
         "action": "override_object",
-        "target": "worker",
+        "target": "employee",
         "override": {"add_fields": [{"name": "shirt_size", "type": "string"}]},
     }
     with pytest.raises(AssistantError, match="manager"):
@@ -154,7 +154,7 @@ def test_schema_changes_need_a_manager():
     mgr = as_person(w, "Operations Manager")
     prop = w.tools.call(mgr, "propose_schema_change", {"proposal": change})
     w.tools.approve(mgr, prop["proposal_id"])
-    names = [f.name for f in w.store.get_effective_schema(mgr, "worker").fields]
+    names = [f.name for f in w.store.get_effective_schema(mgr, "employee").fields]
     assert "shirt_size" in names
 
 
@@ -166,7 +166,7 @@ def test_every_step_is_audited():
     mgr = as_person(w, "Operations Manager")
     actions = [
         plan("list_data"),
-        plan("query_data", query={"object": "worker", "select": ["salary"]}),
+        plan("query_data", query={"object": "employee", "select": ["salary"]}),
         plan("no_such_tool"),
     ]
     res = run_assistant(scripted_policy(actions), w.tools, w.ctx, "show salaries")
@@ -188,7 +188,7 @@ def test_audit_never_stores_restricted_values():
     mgr = as_person(w, "Operations Manager")
     run_assistant(
         scripted_policy(
-            [plan("query_data", query={"object": "worker", "select": ["full_name", "salary"]})]
+            [plan("query_data", query={"object": "employee", "select": ["full_name", "salary"]})]
         ),
         w.tools,
         mgr,
@@ -197,7 +197,7 @@ def test_audit_never_stores_restricted_values():
     text = json.dumps([e.to_dict() for e in w.audit.entries(mgr)])
     salaries = {
         json.dumps(x["salary"])
-        for x in w.store.list_records(w.tenants["fjord"].context(), "worker")
+        for x in w.store.list_records(w.tenants["fjord"].context(), "employee")
     }
     assert not any(s in text for s in salaries)
 
@@ -256,7 +256,7 @@ def test_approval_rechecks_the_approvers_rights():
     prop = w.tools.call(
         mgr,
         "propose_record_update",
-        {"object": "worker", "record_id": w.driver["id"], "changes": {"salary": 60000.0}},
+        {"object": "employee", "record_id": w.driver["id"], "changes": {"salary": 60000.0}},
     )
     with pytest.raises(AssistantError, match="restricted"):
         w.tools.approve(w.ctx, prop["proposal_id"])  # the driver (staff)

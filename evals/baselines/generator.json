@@ -1,7 +1,7 @@
 {
   "version": 2,
   "suite": "generator",
-  "fingerprint": "e72dfdf8f979b2ca",
+  "fingerprint": "335fbd163a7e44ae",
   "n": 19,
   "pass_rate": 1.0,
   "mean_score": 1.0,
@@ -34,6 +34,13 @@
     {
       "date": "2026-10-08",
       "reason": "stage 4: baselines move to v2 (per-case results, dataset fingerprint, token totals)",
+      "pass_rate": 1.0,
+      "n": 19,
+      "accepted_regression": false
+    },
+    {
+      "date": "2026-10-14",
+      "reason": "Terminology: the HR object 'worker' is renamed 'employee' in data, prompts and cases (queue workers keep their name); repair-unknown-reference now uses the missing object 'staff_member'",
       "pass_rate": 1.0,
       "n": 19,
       "accepted_regression": false

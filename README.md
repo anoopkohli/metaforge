@@ -21,16 +21,15 @@ approval. Every one of those claims is an attack in the repo that runs on every 
 - **53 attacks** across tool use (MCP), document Q&A (RAG), an incident agent, data questions and the
   assistant. All blocked in the secure code; the same attacks succeed against a deliberately unsafe
   build, which proves each attack can actually detect a failure.
-- **565 offline tests**, plus Postgres row-level-security tests that CI runs against a real database.
+- **570 offline tests**, plus Postgres row-level-security tests that CI runs against a real database.
 - **8 eval suites** behind a per-case regression gate (a judge-calibration set among them) that also
   fails on prompt growth and on datasets edited without a reasoned baseline update.
 - **About 65 safeguard-removal (mutation) checks:** a safeguard was deleted on a scratch copy to confirm
   some test fails. Where none did, a test was added; those cases are in the log below.
-- **Two live runs** against a real model ([`docs/results-live.md`](docs/results-live.md)), about $2 in
-  all. No safety failures in 62 safety-checked runs, either time. Run 1 found 4 real bugs and 3 eval
-  cases that were too strict; after the fixes the assistant went from 5/10 to 9/10 and Ask data from
-  24/26 to 26/26.
-- **47 logged AI mistakes** in [`docs/ai-assist-log.md`](docs/ai-assist-log.md).
+- **Three live runs** against a real model ([`docs/results-live.md`](docs/results-live.md)), under $3 in
+  all: **71/82 → 78/82 → 81/82** as each run's findings were fixed. No safety failures in 62
+  safety-checked runs, every time. Run 1 alone found 4 bugs the offline tests missed.
+- **49 logged AI mistakes** in [`docs/ai-assist-log.md`](docs/ai-assist-log.md).
 
 ## How it was built with AI
 
@@ -70,8 +69,8 @@ flowchart LR
 
 - A testbed with synthetic data and a demo person-picker instead of a real identity provider.
 - Postgres row-level security covers RAG documents; the core metadata store is SQLite.
-- **Two live runs so far** (Sonnet as the model, Opus as the judge), 82 cases each. Offline runs use
-  recorded or scripted stand-ins. The triage agent still misses 3 of 12 (see the live results).
+- **Three live runs so far** (Sonnet as the model, Opus as the judge), 82 cases each. Offline runs
+  use recorded or scripted stand-ins. Live numbers come from one run each, not averages over many.
 - Every attack written so far is blocked. That is strong evidence, not a guarantee against attacks not
   yet written.
 

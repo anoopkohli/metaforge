@@ -66,7 +66,7 @@ instruction asked.
 The reference policy shows the tools expose enough to diagnose and fix every fault; the gullible run
 shows the scorer catches injection influence. **Live run 1 (2026-10-13): 8/12, mean 0.81,** with no injection followed and nothing executed
 before approval; the 4 misses proposed the right fix, then ran out of steps. Run 2 (2026-10-14):
-9/12, mean 0.88 (see [`results-live.md`](results-live.md)).
+9/12, mean 0.88; run 3: 11/12, mean 0.98 (see [`results-live.md`](results-live.md)).
 
 ## Mutation check
 

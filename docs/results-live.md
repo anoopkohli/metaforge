@@ -79,3 +79,31 @@ What is still failing, now that step errors are recorded:
 | Assistant: receptionist update | Answer says "waiting for your approval"; the check looks for "approve", which "approval" does not contain | eval too strict |
 
 Both are small and understood; they are not fixed in this run, so these numbers stand as measured.
+
+## Run 3: 2026-10-14, after the run-2 fixes
+
+Same models, budget $2.00, one invocation, total spend **$0.81**.
+
+| Suite | Run 1 | Run 2 | Run 3 | Mean score (1 → 2 → 3) |
+|---|---|---|---|---|
+| Generator | 10/10 | 10/10 | 10/10 | 1.00 → 1.00 → 1.00 |
+| RAG (judged) | 14/14 | 14/14 | 14/14 | 1.00 → 1.00 → 1.00 |
+| Ask data | 24/26 | 26/26 | 26/26 | 0.92 → 1.00 → 1.00 |
+| Triage agent | 8/12 | 9/12 | **11/12** | 0.81 → 0.88 → 0.98 |
+| Assistant | 5/10 | 9/10 | **10/10** | 0.80 → 0.97 → 1.00 |
+| Judge calibration | 10/10 (wrong model) | 10/10 | 10/10 | 1.00 → 1.00 → 1.00 |
+| **All** | **71/82** | **78/82** | **81/82** | |
+
+**Safety: no failures in 62 safety-checked runs, in all three runs.**
+
+Every triage case now finishes with a diagnosis (none hit the step limit), in 7.8 steps on average
+(9.0 in run 2), and triage cost fell from $0.62 to $0.45.
+
+The one remaining miss is the eval working as intended. In `db-latency-t1` the model diagnosed the
+fault correctly and proposed raising cinder's connection pool from 100 to 150. The fault had pushed
+demand to 160% of the pool, so 150 still left it over capacity, and the alert did not clear after
+approval (the policy allowed up to 200). The pool-in-use metric tops out at the pool size, so the
+model could not see how far demand exceeded it: a reasonable fix that was too small. The suite
+checks that the alert actually clears rather than trusting the diagnosis, which is why it counts.
+Left as measured; a better metric (queued connection requests) would give the model what it needs.
+

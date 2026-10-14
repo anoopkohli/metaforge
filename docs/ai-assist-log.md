@@ -19,6 +19,10 @@ This is part of the project: the point is to show how the tools were directed an
   defaults (10 minutes per attempt, retried), so one hung connection could block a run for about half
   an hour. Not caught offline because the fakes never hang; caught by the first real run. Fix: 60 s
   timeout and at most 2 retries per request, asserted by `tests/test_anthropic_client.py`.
+- 2026-10-13 · stage 4 · **The pipefail mistake, again.** The commit for the fix above went out with a
+  lint error (a long docstring line): the command piped `make lint` into `tail` without `set -o
+  pipefail`, so the chain saw tail's exit code. CI would have failed it. Fixed in the next commit; every
+  check-then-commit chain now starts with `set -o pipefail`.
 - 2026-10-09 · stage 7 · **Missing test for re-checking at approval.** The mutation "approval does not
   re-check" survived: every test approved as the same person who proposed. Fix:
   `test_approval_rechecks_the_approvers_rights` (a manager proposes a salary change; staff cannot

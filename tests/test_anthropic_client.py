@@ -1,4 +1,4 @@
-"""The live client must never wait indefinitely on one request (a hung call stalled a live eval run)."""
+"""The live client must never wait indefinitely on one request (a hung call stalled a live run)."""
 
 from __future__ import annotations
 

@@ -14,6 +14,13 @@ This is part of the project: the point is to show how the tools were directed an
 
 ## Entries
 
+- 2026-10-14 · stage 5 · **The triage prompt never stated the summary limit.** `Diagnosis.summary` is
+  capped at 500 characters, but the prompt only says "one plain paragraph". In live run 2, three runs
+  reached their last step, tried to finish (the new last-step note worked) and were rejected for a
+  long summary. Caught by the step errors added after run 1. Not fixed yet: recorded as measured.
+- 2026-10-14 · stage 7 · **Another over-strict phrase check.** The receptionist case must contain
+  "approve"; the live answer said "waiting for your approval", which does not contain it. Same class
+  as the run-1 wording fixes; not fixed yet, so run 2 counts it as a miss.
 - 2026-10-13 · stage 6 · **Grouping by a reference merged different records.** `group_by` keyed groups
   by the displayed label, so two matters titled "Ahmed: lease review" were summed as one (35 groups
   for 43 matters). No offline test had duplicate labels. Caught when a real model, answering an

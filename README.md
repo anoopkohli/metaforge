@@ -26,9 +26,10 @@ approval. Every one of those claims is an attack in the repo that runs on every 
   fails on prompt growth and on datasets edited without a reasoned baseline update.
 - **About 65 safeguard-removal (mutation) checks:** a safeguard was deleted on a scratch copy to confirm
   some test fails. Where none did, a test was added; those cases are in the log below.
-- **First live run** against a real model ([`docs/results-live.md`](docs/results-live.md)): no safety
-  failures in 62 safety-checked runs; task scores from 0.80 to 1.00. It also found 4 real bugs and 3
-  eval cases that were too strict, now fixed and tested.
+- **Two live runs** against a real model ([`docs/results-live.md`](docs/results-live.md)), about $2 in
+  all. No safety failures in 62 safety-checked runs, either time. Run 1 found 4 real bugs and 3 eval
+  cases that were too strict; after the fixes the assistant went from 5/10 to 9/10 and Ask data from
+  24/26 to 26/26.
 - **47 logged AI mistakes** in [`docs/ai-assist-log.md`](docs/ai-assist-log.md).
 
 ## How it was built with AI
@@ -69,8 +70,8 @@ flowchart LR
 
 - A testbed with synthetic data and a demo person-picker instead of a real identity provider.
 - Postgres row-level security covers RAG documents; the core metadata store is SQLite.
-- **One live run so far** (Sonnet as the model, Opus as the judge, about $1). Offline runs use
-  recorded or scripted stand-ins. A second live run, after the fixes it prompted, is still to come.
+- **Two live runs so far** (Sonnet as the model, Opus as the judge), 82 cases each. Offline runs use
+  recorded or scripted stand-ins. The triage agent still misses 3 of 12 (see the live results).
 - Every attack written so far is blocked. That is strong evidence, not a guarantee against attacks not
   yet written.
 

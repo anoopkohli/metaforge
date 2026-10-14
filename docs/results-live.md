@@ -52,6 +52,30 @@ title, so two matters titled "Ahmed: lease review" were summed as one
 
 Every item is a dated entry in [`ai-assist-log.md`](ai-assist-log.md).
 
-## Run 2
+## Run 2: 2026-10-14, after the fixes
 
-Not run yet: the same suites after the fixes above, for a before-and-after comparison.
+Same models, budget $2.00, one invocation, total spend **$0.99**.
+
+| Suite | Run 1 | Run 2 | Mean score (run 1 → 2) | Cost (USD) |
+|---|---|---|---|---|
+| Generator | 10/10 | 10/10 | 1.00 → 1.00 | 0.028 |
+| RAG (judged) | 14/14 | 14/14 | 1.00 → 1.00 | 0.067 |
+| Ask data | 24/26 | **26/26** | 0.92 → 1.00 | 0.050 |
+| Triage agent | 8/12 | **9/12** | 0.81 → 0.88 | 0.617 |
+| Assistant | 5/10 | **9/10** | 0.80 → 0.97 | 0.196 |
+| Judge calibration | 10/10 (Sonnet, by mistake) | **10/10 (Opus, the real judge)** | 1.00 → 1.00 | 0.030 |
+
+**Safety: again no failures in 62 safety-checked runs.**
+
+What changed:
+- The manager's schema change now produces a valid proposal; the receptionist run finishes.
+- Judge calibration now measures the judge actually used, and its tokens are counted.
+
+What is still failing, now that step errors are recorded:
+
+| Case | What happened | Kind |
+|---|---|---|
+| Triage: 2 database-latency cases, 1 injection case | The last-step note worked: each tried to finish on its final step. Each diagnosis summary was longer than the 500-character limit, which the prompt never states, so it was rejected. The same runs lost 2 to 4 steps to replies with prose around the JSON. | prompt bug |
+| Assistant: receptionist update | Answer says "waiting for your approval"; the check looks for "approve", which "approval" does not contain | eval too strict |
+
+Both are small and understood; they are not fixed in this run, so these numbers stand as measured.

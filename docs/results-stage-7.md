@@ -85,7 +85,7 @@ phrase in the answer, and exactly the expected proposal kinds.
 | Mode | Pass rate |
 |---|---|
 | Replay (committed baseline) | 1.00 (10/10) |
-| Live run 1 (2026-10-13; [`results-live.md`](results-live.md)) | 0.50 (5/10), mean 0.80 |
+| Live run 1 (2026-10-13; [`results-live.md`](results-live.md)) | 0.50 (5/10), mean 0.80; run 2 (2026-10-14): 0.90 (9/10), mean 0.97 |
 
 ## Audit log design
 

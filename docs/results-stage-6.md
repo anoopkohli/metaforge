@@ -72,7 +72,7 @@ query's result. Restricted values reaching staff, or another tenant's canary, sc
 |---|---|
 | Replay (gold plans played back; committed baseline) | 1.00 (26/26) |
 | Control: a planner that answers a different question (count instead) | 0.00 |
-| Live run 1 (2026-10-13; [`results-live.md`](results-live.md)) | 0.92 (24/26) |
+| Live run 1 (2026-10-13; [`results-live.md`](results-live.md)) | 0.92 (24/26); run 2 (2026-10-14): 1.00 (26/26) |
 
 Replay shows the validator, interpreter and scoring are right; the live number is the interesting one
 (how often does a real model plan the right query, and does it refuse restricted requests itself?).

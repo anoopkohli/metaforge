@@ -93,7 +93,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.live and suite.live_scorer is not None:
             scorer = suite.live_scorer(judge_factory)
         spent_before = ledger.spent_usd if ledger else 0.0
-        report = run_suite(name, cases, suite.build(mode, factory), scorer)
+        build_factory = judge_factory if (args.live and suite.tests_the_judge) else factory
+        report = run_suite(name, cases, suite.build(mode, build_factory), scorer)
         cost = (ledger.spent_usd - spent_before) if ledger else 0.0
         summary = summarize(report, cases, mode, cost_usd=cost)
         ran.add(name)

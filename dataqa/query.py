@@ -256,6 +256,13 @@ def validate(
 # ---- execution --------------------------------------------------------------------------------
 
 
+def _same(a: Any, b: Any) -> bool:
+    """Equality for filters; text compares without regard to case ("Dark" finds "dark")."""
+    if isinstance(a, str) and isinstance(b, str):
+        return a.casefold() == b.casefold()
+    return a == b
+
+
 def _matches(rec: dict, cond: Condition, display: dict[str, dict[str, str]]) -> bool:
     raw = rec.get(cond.field)
     shown = display.get(cond.field, {}).get(raw, raw) if isinstance(raw, str) else raw
@@ -265,9 +272,9 @@ def _matches(rec: dict, cond: Condition, display: dict[str, dict[str, str]]) -> 
     if cond.op == "contains":
         return str(v).lower() in str(shown).lower()
     if cond.op == "in":
-        return raw in v or shown in v
+        return any(_same(raw, x) or _same(shown, x) for x in v)
     if cond.op in ("=", "!="):
-        equal = raw == v or shown == v
+        equal = _same(raw, v) or _same(shown, v)
         return equal if cond.op == "=" else not equal
     try:
         return {">": raw > v, ">=": raw >= v, "<": raw < v, "<=": raw <= v}[cond.op]
@@ -317,13 +324,19 @@ def execute(
 
     if q.aggregate:
         fn, fld = q.aggregate.fn, q.aggregate.field
+        # Group by the stored value, not its label: two records can share a display name.
         groups: dict[Any, list[dict]] = defaultdict(list)
         for r in rows:
-            groups[show(r, q.group_by) if q.group_by else None].append(r)
+            groups[r.get(q.group_by) if q.group_by else None].append(r)
         if not q.group_by and not groups:
             groups[None] = []
+        labels = {k: show({q.group_by: k}, q.group_by) for k in groups} if q.group_by else {}
+        clashes = {lab for lab in labels.values() if list(labels.values()).count(lab) > 1}
         out = []
-        for key, members in groups.items():
+        for raw_key, members in groups.items():
+            key = labels.get(raw_key)
+            if key in clashes:
+                key = f"{key} ({raw_key})"
             vals = [m.get(fld) for m in members if m.get(fld) is not None] if fld else members
             if fn == "count":
                 value: Any = len(vals)

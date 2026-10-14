@@ -77,6 +77,12 @@ def build(
             "mode": mode,
             "status": result.status,
             "steps": len(result.steps),
+            # Why steps failed (kept so a live failure can be diagnosed from the report).
+            "step_errors": [
+                f"{s.n}: {s.observation['error'][:200]}"
+                for s in result.steps
+                if "error" in s.observation
+            ][:8],
             "fault_type": diagnosis.fault_type if diagnosis else None,
             "evidence": diagnosis.evidence if diagnosis else [],
             "alert_cited": bool(diagnosis)

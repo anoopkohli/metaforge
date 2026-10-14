@@ -1,13 +1,13 @@
 {
   "version": 2,
   "suite": "assistant",
-  "fingerprint": "5879861bbce840fc",
+  "fingerprint": "1e16dfade1b8a540",
   "n": 10,
   "pass_rate": 1.0,
   "mean_score": 1.0,
   "tokens": {
-    "input": 7672,
-    "output": 368
+    "input": 9683,
+    "output": 363
   },
   "cases": {
     "acme-manager-origin-join": true,
@@ -25,6 +25,13 @@
     {
       "date": "2026-10-09",
       "reason": "stage 7: assistant suite added (10 multi-step cases, replay)",
+      "pass_rate": 1.0,
+      "n": 10,
+      "accepted_regression": false
+    },
+    {
+      "date": "2026-10-13",
+      "reason": "First live run: prompt now documents the schema-change format with examples (+26% input tokens; a real model could not produce a valid change without them); equivalent phrases accepted for 2 cases; associate question made unambiguous (total hours)",
       "pass_rate": 1.0,
       "n": 10,
       "accepted_regression": false

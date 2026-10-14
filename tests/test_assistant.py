@@ -261,3 +261,34 @@ def test_approval_rechecks_the_approvers_rights():
     with pytest.raises(AssistantError, match="restricted"):
         w.tools.approve(w.ctx, prop["proposal_id"])  # the driver (staff)
     assert w.tools.approve(mgr, prop["proposal_id"])["status"] == "executed"
+
+
+# ---- live-run fixes ---------------------------------------------------------------------------
+
+
+def test_prompt_schema_examples_parse_and_apply():
+    # Found by the first live run: the prompt said "the stage-1 proposal format" and nothing more,
+    # so a real model could not produce a valid schema change. The examples are now in the prompt.
+    from assistant.agent import SCHEMA_EXAMPLES, SYSTEM_PROMPT
+    from generator.proposal import parse_proposal
+
+    assert {e["action"] for e in SCHEMA_EXAMPLES} == {"override_object", "create_object"}
+    w = world(False)
+    mgr = as_person(w, "Operations Manager")
+    for example in SCHEMA_EXAMPLES:
+        assert json.dumps(example) in SYSTEM_PROMPT
+        parse_proposal(json.dumps(example))  # strict: the documented format is the real one
+    override = next(e for e in SCHEMA_EXAMPLES if e["action"] == "override_object")
+    prop = w.tools.call(mgr, "propose_schema_change", {"proposal": override})
+    assert prop["proposal_id"]
+
+
+def test_model_is_told_when_its_next_reply_is_the_last():
+    from core.llm import FakeLLM
+
+    w = world(False)
+    llm = FakeLLM([json.dumps(plan("list_data"))])
+    run_assistant(llm, w.tools, w.ctx, "loop")
+    last_prompt = llm.calls[-1]["messages"][-1].content
+    assert "last step" in last_prompt and "finish" in last_prompt
+    assert "last step" not in llm.calls[-2]["messages"][-1].content

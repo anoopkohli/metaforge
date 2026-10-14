@@ -327,3 +327,43 @@ def test_live_run_without_a_key_stops_before_running_anything(monkeypatch, tmp_p
     assert exc.value.code != 0
     assert "ANTHROPIC_API_KEY" in capsys.readouterr().err
     assert list(tmp_path.iterdir()) == []  # no 0% reports that look like real results
+
+
+def test_judge_calibration_calibrates_the_judge_model_and_counts_its_tokens(
+    monkeypatch, tmp_path, capsys
+):
+    # Found after the first live run: calibration was built with the model under test, not the
+    # judge model the RAG suite is graded by, and the judge's tokens were reported as 0.
+    import core.llm.anthropic_client as provider
+    import evals.run as cli
+
+    called: list[str] = []
+
+    class FakeProvider:
+        def __init__(self, model, api_key=None):
+            self.model = model
+
+        def complete(self, messages, **kw):
+            called.append(self.model)
+            return FakeLLM([json.dumps({"verdict": "correct", "reason": "fake"})]).complete(
+                messages, **kw
+            )
+
+    monkeypatch.setattr(provider, "AnthropicLLM", FakeProvider)
+    monkeypatch.setattr(cli, "REPORTS", tmp_path)
+    monkeypatch.setenv("METAFORGE_MODEL", "claude-sonnet-5-5")
+    monkeypatch.setenv("METAFORGE_JUDGE_MODEL", "claude-opus-5-5")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-not-a-key")
+    assert cli.main(["--live", "--suite", "judge_calibration", "--max-cost-usd", "5"]) == 0
+    assert called and set(called) == {"claude-opus-5-5"}
+    summary = json.loads((tmp_path / "judge_calibration-live.json").read_text())["summary"]
+    assert summary["tokens_in"] > 0 and summary["tokens_out"] > 0
+
+
+@pytest.mark.parametrize("name", ["assistant", "triage"])
+def test_agent_suites_report_why_steps_failed(name):
+    # After the first live run, failing cases could not be diagnosed: step errors were not kept.
+    suite = SUITES[name]
+    case = suite.load_cases("replay")[0]
+    out = suite.build("replay", None)(case)
+    assert isinstance(out["step_errors"], list)

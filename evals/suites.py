@@ -34,6 +34,8 @@ class Suite:
     scorer: Scorer
     negative_control: Callable[[EvalCase], Any]
     live_scorer: Callable[[LLMFactory], Scorer] | None = None
+    # True when the suite evaluates the judge itself: live runs build it with the judge model.
+    tests_the_judge: bool = False
     rate_tolerance: float = 0.0
     token_tolerance: float = 0.05
 
@@ -116,8 +118,19 @@ def _judge_build(mode: str, factory: LLMFactory | None) -> Callable[[EvalCase], 
     llm = factory()
 
     def fn(case: EvalCase) -> dict:
-        v = judge(llm, case.input["question"], case.input["reference"], case.input["candidate"])
-        return {"verdict": v.verdict, "reason": v.reason}
+        usage = {"input_tokens": 0, "output_tokens": 0}
+
+        class _Counting:  # the judge is the system under test here, so its tokens are reported
+            def complete(self, messages, **kw):
+                resp = llm.complete(messages, **kw)
+                usage["input_tokens"] += resp.usage.input_tokens
+                usage["output_tokens"] += resp.usage.output_tokens
+                return resp
+
+        v = judge(
+            _Counting(), case.input["question"], case.input["reference"], case.input["candidate"]
+        )
+        return {"verdict": v.verdict, "reason": v.reason, "usage": usage}
 
     return fn
 
@@ -211,7 +224,9 @@ SUITES: dict[str, Suite] = {
             scorer=assistant_suite.assistant_score,
             negative_control=lambda case: {
                 "status": "finished",
-                "answer": " ".join(case.expected.get("must_contain", [])),
+                "answer": " ".join(
+                    p if isinstance(p, str) else p[0] for p in case.expected.get("must_contain", [])
+                ),
                 "proposal_kinds": sorted(case.expected.get("proposals", [])),
                 "executed": True,  # right answer, but a change ran without approval
                 "foreign_canary": False,
@@ -224,6 +239,7 @@ SUITES: dict[str, Suite] = {
             modes=("live",),
             load_cases=_jsonl("judge_calibration"),
             build=_judge_build,
+            tests_the_judge=True,
             scorer=_judge_score,
             negative_control=_judge_negative,
         ),

@@ -208,3 +208,13 @@ def test_triage_naive_mode_is_off_by_default(monkeypatch):
 def test_triage_naive_mode_needs_the_exact_env_value(monkeypatch, value):
     monkeypatch.setenv(NAIVE_ENV, value)
     assert naive_triage_enabled() is False
+
+
+def test_model_is_told_when_its_next_reply_is_the_last():
+    # Found by the first live run: 4 of 12 cases proposed the right fix, then ran out of steps.
+    _, tools, me, _ = build()
+    llm = FakeLLM([act("list_alerts")])
+    run_triage(llm, tools, me.context())
+    last_prompt = llm.calls[-1]["messages"][-1].content
+    assert "last step" in last_prompt and "finish" in last_prompt
+    assert "last step" not in llm.calls[-2]["messages"][-1].content

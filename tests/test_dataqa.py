@@ -399,3 +399,42 @@ def test_records_can_be_selected_by_id(world):
         ),
     )
     assert res.rows and res.rows[0]["id"] == "vehicle-0003"
+
+
+def test_group_by_reference_keeps_records_with_the_same_label_apart(world):
+    # Found by the first live run: two matters titled "Ahmed: lease review" were summed as one.
+    store, _ = world
+    manager = ctx(world, "cinder", manager=True)
+    entries = store.list_records(manager, "time_entry")
+    titles = [m["title"] for m in store.list_records(manager, "matter")]
+    assert len(titles) != len(set(titles))  # the seed has duplicate titles, so this is not vacuous
+    res = execute(
+        store,
+        manager,
+        parse_query(
+            {
+                "object": "time_entry",
+                "group_by": "matter",
+                "aggregate": {"fn": "sum", "field": "hours"},
+                "limit": 100,
+            }
+        ),
+    )
+    assert res.matched == len({e["matter"] for e in entries})
+    labels = [r["matter"] for r in res.rows]
+    assert len(labels) == len(set(labels))  # duplicates are told apart in the label
+    assert round(sum(r["value"] for r in res.rows), 2) == round(sum(e["hours"] for e in entries), 2)
+
+
+@pytest.mark.parametrize("value", ["Dark", "DARK", "dark"])
+def test_text_equality_ignores_case(world, value):
+    # Found by the first live run: the model filtered on "Dark", the data says "dark", 0 rows.
+    store, _ = world
+    acme = ctx(world, "acme")
+    want = sum(1 for p in store.list_records(acme, "product") if p["roast_level"] == "dark")
+    assert want > 0
+    query = {"object": "product", "where": [{"field": "roast_level", "op": "=", "value": value}]}
+    assert execute(store, acme, parse_query(query)).matched == want
+    query["where"][0]["op"] = "in"
+    query["where"][0]["value"] = [value]
+    assert execute(store, acme, parse_query(query)).matched == want

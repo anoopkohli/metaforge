@@ -22,6 +22,28 @@ from core.obs.tracing import span
 from core.tenancy.context import MissingTenantContext, TenantContext
 from dataqa import MANAGER_ROLE
 
+# Documented in the prompt verbatim; tests check each one parses with the generator's strict parser.
+SCHEMA_EXAMPLES: tuple[dict, ...] = (
+    {
+        "action": "override_object",
+        "target": "worker",
+        "override": {
+            "add_fields": [{"name": "shirt_size", "type": "string", "label": "Shirt size"}],
+            "hide_fields": [],
+            "relabel": {},
+        },
+    },
+    {
+        "action": "create_object",
+        "object": {
+            "name": "supplier",
+            "label": "Supplier",
+            "fields": [{"name": "company_name", "type": "string", "required": True}],
+        },
+    },
+)
+LAST_STEP_NOTE = "Your next reply is your last step: send finish now with what you have."
+
 SYSTEM_PROMPT = f"""\
 You are the assistant inside a business app. You help one signed-in person at one company, using
 tools. Each reply must be exactly one JSON object: {{"tool": "<name>", "args": {{...}}}}.
@@ -37,7 +59,13 @@ Tools:
   "order_by": {{"field": ..., "desc": bool}}, "limit": 1-100}}}}: one object per query. To combine
   objects, run several queries and combine the results yourself.
 - propose_record_update {{"object": ..., "record_id": ..., "changes": {{field: value}}}}
-- propose_schema_change {{"proposal": {{...}}}} (managers only; the stage-1 proposal format)
+- propose_schema_change {{"proposal": P}} (managers only). P is exactly one of these shapes:
+  change an existing object (add, hide or relabel fields):
+  {json.dumps(SCHEMA_EXAMPLES[0])}
+  create a new object:
+  {json.dumps(SCHEMA_EXAMPLES[1])}
+  Field names are lowercase snake_case; types: string, integer, decimal, boolean, date, reference
+  (reference also needs "reference_to": object).
 - finish {{"answer": text, "sources": ["<document source id>" or "query:N", ...]}}
 
 Rules:
@@ -49,6 +77,8 @@ Rules:
 - Some data is restricted or limited to this person's own rows. If a request needs data they
   cannot see, say so plainly; do not try another way around it.
 - Cite your sources: the source id of each document passage used, and query:N for your Nth query.
+- After a proposal is recorded, finish in your next step: say what you proposed and that it waits
+  for the user's approval.
 """
 
 _TAG = re.compile(r"<\s*(/?)\s*(observation|question)\b", re.IGNORECASE)
@@ -95,9 +125,8 @@ class AssistantResult:
 
 def _render(tool: str, n: int, obs: dict, remaining: int) -> str:
     body = _TAG.sub(r"<\1_\2", json.dumps(obs, default=str))
-    return (
-        f'<observation tool="{tool}" step="{n}">\n{body}\n</observation>\n{remaining} steps left.'
-    )
+    tail = LAST_STEP_NOTE if remaining == 1 else f"{remaining} steps left."
+    return f'<observation tool="{tool}" step="{n}">\n{body}\n</observation>\n{tail}'
 
 
 def _parse(text: str) -> _Action:

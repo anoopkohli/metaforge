@@ -1,13 +1,13 @@
 {
   "version": 2,
   "suite": "dataqa",
-  "fingerprint": "52e043e657defe54",
+  "fingerprint": "83dbf2bd775d850b",
   "n": 26,
   "pass_rate": 1.0,
   "mean_score": 1.0,
   "tokens": {
     "input": 10728,
-    "output": 390
+    "output": 385
   },
   "cases": {
     "acme-q1-staff": true,
@@ -41,6 +41,13 @@
     {
       "date": "2026-10-08",
       "reason": "stage 6: Ask data suite added (26 cases, replay of gold plans)",
+      "pass_rate": 1.0,
+      "n": 26,
+      "accepted_regression": false
+    },
+    {
+      "date": "2026-10-13",
+      "reason": "First live run: fjord-q1-staff gold no longer sorts (the question asks for no order; the model's correct unsorted answer failed)",
       "pass_rate": 1.0,
       "n": 26,
       "accepted_regression": false

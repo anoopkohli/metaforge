@@ -68,6 +68,11 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("baselines are offline only; --live cannot update them")
     if args.update_baseline and not args.reason.strip():
         parser.error("--update-baseline needs --reason")
+    if args.live and not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        parser.error(
+            "--live needs ANTHROPIC_API_KEY in this shell's environment "
+            "(export it in the same terminal that runs this command)"
+        )
 
     mode = "live" if args.live else "replay"
     names = args.suite or [n for n, s in SUITES.items() if mode in s.modes]

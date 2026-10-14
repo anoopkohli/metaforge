@@ -14,6 +14,11 @@ This is part of the project: the point is to show how the tools were directed an
 
 ## Entries
 
+- 2026-10-13 · stage 4 · **A live run with no API key reported 0% instead of stopping.** Rerunning the
+  remaining live suites from a shell without `ANTHROPIC_API_KEY` made zero calls, recorded every case
+  as an error and printed `pass_rate=0.0` for four suites, which reads like a result. Caught by reading
+  the per-case errors. Fix: `--live` now refuses to start without the key and writes no reports;
+  `test_live_run_without_a_key_stops_before_running_anything`.
 - 2026-10-13 · stage 4 · **No timeout on live model calls.** The first live eval run stalled for over
   10 minutes in the triage suite on one API request that never answered: the client used the SDK
   defaults (10 minutes per attempt, retried), so one hung connection could block a run for about half

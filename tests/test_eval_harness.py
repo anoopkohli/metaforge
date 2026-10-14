@@ -292,6 +292,7 @@ def test_live_mode_wiring_with_a_fake_provider(monkeypatch, capsys, tmp_path):
     monkeypatch.setattr(provider, "AnthropicLLM", FakeProvider)
     monkeypatch.setattr(cli, "REPORTS", tmp_path)
     monkeypatch.setenv("METAFORGE_MODEL", "claude-sonnet-5-5")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-not-a-key")
     rc = cli.main(
         ["--live", "--suite", "rag", "--suite", "judge_calibration", "--max-cost-usd", "5"]
     )
@@ -314,3 +315,15 @@ def test_live_run_cannot_update_baselines():
 
     with pytest.raises(SystemExit):
         cli.main(["--live", "--update-baseline", "--reason", "x"])
+
+
+def test_live_run_without_a_key_stops_before_running_anything(monkeypatch, tmp_path, capsys):
+    import evals.run as cli
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(cli, "REPORTS", tmp_path)
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--live", "--suite", "rag"])
+    assert exc.value.code != 0
+    assert "ANTHROPIC_API_KEY" in capsys.readouterr().err
+    assert list(tmp_path.iterdir()) == []  # no 0% reports that look like real results

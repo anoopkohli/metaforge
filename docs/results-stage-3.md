@@ -94,7 +94,7 @@ The one miss, `lost-asset-desk-t2` ("Which desk do I report a stolen asset to?")
 retrieved, but the lexical embedder ranks its second paragraph ("Every asset has a tag...") above the
 paragraph naming the desk, and the extractive replay model answers from the top chunk only. Left in the
 dataset as a known weakness of lexical embeddings; a semantic embedder or a real model reading all five
-chunks should fix it. Live mode (`make evals-live`) has not been run yet.
+chunks should fix it. Live run 1 (2026-10-13): 14/14 with an Opus judge (see [`results-live.md`](results-live.md)).
 
 ## Known limits
 - **Offline embedder only.** `HashingEmbedder` is lexical. The `Embedder` interface is ready for a

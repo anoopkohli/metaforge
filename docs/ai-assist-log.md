@@ -14,6 +14,45 @@ This is part of the project: the point is to show how the tools were directed an
 
 ## Entries
 
+- 2026-10-13 · stage 6 · **Grouping by a reference merged different records.** `group_by` keyed groups
+  by the displayed label, so two matters titled "Ahmed: lease review" were summed as one (35 groups
+  for 43 matters). No offline test had duplicate labels. Caught when a real model, answering an
+  associate's question in the first live run, pointed out it could not split the total. Fix: group by
+  the stored value and disambiguate clashing labels;
+  `test_group_by_reference_keeps_records_with_the_same_label_apart`.
+- 2026-10-13 · stage 6 · **Text filters were case-sensitive.** The live model filtered on "Dark"
+  (data: "dark") and got no rows. Offline gold plans always used the stored spelling. Fix: equality
+  and `in` ignore case for text; `test_text_equality_ignores_case`. Not fixed by showing record values
+  to the model: the planner deliberately never sees them.
+- 2026-10-13 · stage 7 · **The schema-change tool was undocumented to the model.** The assistant prompt
+  said "the stage-1 proposal format", which a model in a new conversation has never seen; the live
+  model tried three shapes and all were rejected. Replay passed because the recorded plans already
+  used the right shape. Fix: the exact shapes are in the prompt and
+  `test_prompt_schema_examples_parse_and_apply` parses them with the real parser (+26% prompt tokens,
+  recorded in the baseline with that reason).
+- 2026-10-13 · stages 5, 7 · **Agents ran out of steps after doing the right thing.** 4 triage cases
+  and 1 assistant case proposed the correct fix, then kept going until the step cap. Fix: a "finish
+  once you have proposed" rule and a last-step note on the next-to-last observation (tested in both
+  loops). Whether it works is for live run 2 to show.
+- 2026-10-13 · stage 4 · **Judge calibration calibrated the wrong model.** Its build was given the
+  model-under-test factory, so it measured Sonnet as a judge while RAG answers are graded by Opus; it
+  also reported the judge's tokens as 0. Caught while fixing the token count, by reading how the suite
+  is built. Fix: suites that test the judge are built with the judge model and count its tokens;
+  `test_judge_calibration_calibrates_the_judge_model_and_counts_its_tokens`.
+- 2026-10-13 · stages 5, 7 · **Live reports dropped step errors,** so a failure made of unparseable
+  replies could not be diagnosed. Fix: agent suite outputs keep `step_errors`.
+- 2026-10-13 · stages 6, 7 · **Three eval cases were stricter or vaguer than their questions.** A gold
+  query sorted when the question asked no order; two answers had to contain one exact wording ("5
+  dollar", "7 scheduled"); one question ("hours on each of my matters") had a total as its expected
+  answer and two fair readings. Caught by reading each live failure. Fix: the gold no longer sorts,
+  equivalent phrases are listed explicitly, and the question asks for the total. Changed after seeing
+  results, so each change and its reason is in the baseline diff.
+- 2026-10-13 · stage 7 · **A prompt-template slip.** While adding the schema examples, the AI escaped
+  braces inside an f-string substitution, which would have shown the model `{{...}}`. Caught by
+  printing the rendered prompt before running the tests; the parse test would also have caught it.
+- 2026-10-13 · docs · **An overclaim in a summary.** The AI told the user there were no safety
+  failures "across 82 runs"; only 62 of them carry safety checks (generator and judge cases do not).
+  Caught by checking every report's safety fields before writing the results doc, which says 62.
 - 2026-10-13 · stage 4 · **A live run with no API key reported 0% instead of stopping.** Rerunning the
   remaining live suites from a shell without `ANTHROPIC_API_KEY` made zero calls, recorded every case
   as an error and printed `pass_rate=0.0` for four suites, which reads like a result. Caught by reading

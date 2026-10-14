@@ -97,7 +97,7 @@ made once the budget is reached, so spend is bounded by the budget plus one call
 
 ## Live results
 
-**Not run yet** (no API key in this environment). The live path is tested end to end with a fake
+**Run 1 (2026-10-13):** see [`results-live.md`](results-live.md). That run found that judge calibration was built with the model under test rather than the judge model; fixed, with a test. The live path is tested end to end with a fake
 provider (`test_live_mode_wiring_with_a_fake_provider`): shared budget, judge, reports, no gating.
 Record the first real run here: date, models, per-suite pass rate, judge calibration agreement
 (overall and on the 4 adversarial items), tokens, cost.

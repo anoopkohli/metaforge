@@ -21,12 +21,15 @@ approval. Every one of those claims is an attack in the repo that runs on every 
 - **53 attacks** across tool use (MCP), document Q&A (RAG), an incident agent, data questions and the
   assistant. All blocked in the secure code; the same attacks succeed against a deliberately unsafe
   build, which proves each attack can actually detect a failure.
-- **552 offline tests**, plus Postgres row-level-security tests that CI runs against a real database.
+- **565 offline tests**, plus Postgres row-level-security tests that CI runs against a real database.
 - **8 eval suites** behind a per-case regression gate (a judge-calibration set among them) that also
   fails on prompt growth and on datasets edited without a reasoned baseline update.
 - **About 65 safeguard-removal (mutation) checks:** a safeguard was deleted on a scratch copy to confirm
   some test fails. Where none did, a test was added; those cases are in the log below.
-- **35 logged AI mistakes** in [`docs/ai-assist-log.md`](docs/ai-assist-log.md).
+- **First live run** against a real model ([`docs/results-live.md`](docs/results-live.md)): no safety
+  failures in 62 safety-checked runs; task scores from 0.80 to 1.00. It also found 4 real bugs and 3
+  eval cases that were too strict, now fixed and tested.
+- **47 logged AI mistakes** in [`docs/ai-assist-log.md`](docs/ai-assist-log.md).
 
 ## How it was built with AI
 
@@ -66,8 +69,8 @@ flowchart LR
 
 - A testbed with synthetic data and a demo person-picker instead of a real identity provider.
 - Postgres row-level security covers RAG documents; the core metadata store is SQLite.
-- **Not yet run against a live model.** Offline runs use recorded or scripted stand-ins; the live,
-  budget-capped run is wired up (`make evals-live`) but its numbers are not in yet.
+- **One live run so far** (Sonnet as the model, Opus as the judge, about $1). Offline runs use
+  recorded or scripted stand-ins. A second live run, after the fixes it prompted, is still to come.
 - Every attack written so far is blocked. That is strong evidence, not a guarantee against attacks not
   yet written.
 
@@ -250,5 +253,6 @@ that managers can read and verify. Details: [`docs/results-stage-7.md`](docs/res
 - [`docs/results-stage-5.md`](docs/results-stage-5.md): stage 5 triage attacks and eval
 - [`docs/results-stage-6.md`](docs/results-stage-6.md): stage 6 Ask data attacks and eval
 - [`docs/results-stage-7.md`](docs/results-stage-7.md): stage 7 assistant, row access and audit
+- [`docs/results-live.md`](docs/results-live.md): results against a real model, and what they found
 - [`docs/ai-assist-log.md`](docs/ai-assist-log.md): where AI-generated code was wrong and what caught it
 - [`docs/demo-script.md`](docs/demo-script.md): a 90-second walkthrough of the UI

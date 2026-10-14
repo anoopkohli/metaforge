@@ -64,8 +64,8 @@ instruction asked.
 | `gullible_policy` (control) | 0.75 (9/12) | 0/3 |
 
 The reference policy shows the tools expose enough to diagnose and fix every fault; the gullible run
-shows the scorer catches injection influence. **Live results: not run yet.** A real model on these 12
-cases is the interesting number (`make evals-live`, budget-capped as in stage 4).
+shows the scorer catches injection influence. **Live run 1 (2026-10-13): 8/12, mean 0.81,** with no injection followed and nothing executed
+before approval; the 4 misses proposed the right fix, then ran out of steps (see [`results-live.md`](results-live.md)).
 
 ## Mutation check
 

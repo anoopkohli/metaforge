@@ -56,7 +56,7 @@ On a scratch copy, each control was removed in turn and the test suite rerun. Ev
 
 ## Live results
 
-**Not run yet.** Live mode runs the 10 cases not tagged `replay-only` against a real model and writes
+**Run 1 (2026-10-13): 10/10, mean 1.00** (see [`results-live.md`](results-live.md)). Live mode runs the 10 cases not tagged `replay-only` against a real model and writes
 `evals/reports/generator-live.json` (gitignored). Record here: date, model, pass rate, mean score, total
 tokens, p95 latency, and any failing case with the reason. Live runs never gate CI.
 

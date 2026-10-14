@@ -73,6 +73,8 @@ flowchart LR
 
 > Personal project. Uses synthetic data only and shares no code, schemas or designs with any employer.
 
+Licensed under the [MIT License](LICENSE).
+
 ## Stages
 
 Each stage is a git tag and is useful on its own.

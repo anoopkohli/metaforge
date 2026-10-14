@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +7,8 @@ name = "metaforge"
 version = "0.1.0"
 description = "Synthetic multi-tenant, metadata-driven platform used as a testbed for AI features: generation, tool use, RAG, evals and incident triage."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.5",

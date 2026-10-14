@@ -14,6 +14,11 @@ This is part of the project: the point is to show how the tools were directed an
 
 ## Entries
 
+- 2026-10-13 · stage 4 · **No timeout on live model calls.** The first live eval run stalled for over
+  10 minutes in the triage suite on one API request that never answered: the client used the SDK
+  defaults (10 minutes per attempt, retried), so one hung connection could block a run for about half
+  an hour. Not caught offline because the fakes never hang; caught by the first real run. Fix: 60 s
+  timeout and at most 2 retries per request, asserted by `tests/test_anthropic_client.py`.
 - 2026-10-09 · stage 7 · **Missing test for re-checking at approval.** The mutation "approval does not
   re-check" survived: every test approved as the same person who proposed. Fix:
   `test_approval_rechecks_the_approvers_rights` (a manager proposes a salary change; staff cannot

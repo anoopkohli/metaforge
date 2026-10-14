@@ -2,6 +2,7 @@
 
 The SDK is imported lazily so the base install (and the offline test suite) never needs it.
 Install with `pip install -e ".[llm]"` and set ANTHROPIC_API_KEY to use it.
+Every request has a bounded timeout and retry count: one hung call must fail, not stall a run.
 """
 
 from __future__ import annotations
@@ -13,12 +14,22 @@ from core.llm.base import LLMResponse, Message, Usage
 
 
 class AnthropicLLM:
-    def __init__(self, model: str = "claude-sonnet-5-5", api_key: str | None = None) -> None:
+    def __init__(
+        self,
+        model: str = "claude-sonnet-5-5",
+        api_key: str | None = None,
+        *,
+        timeout_s: float = 60.0,
+        max_retries: int = 2,
+    ) -> None:
         try:
             import anthropic
         except ImportError as exc:  # pragma: no cover - depends on optional extra
             raise RuntimeError('anthropic SDK not installed: pip install -e ".[llm]"') from exc
-        self._client = anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic()
+        kwargs: dict = {"timeout": timeout_s, "max_retries": max_retries}
+        if api_key:
+            kwargs["api_key"] = api_key
+        self._client = anthropic.Anthropic(**kwargs)
         self._model = model
 
     def complete(
